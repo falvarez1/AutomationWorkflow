@@ -53,7 +53,6 @@ pluginRegistry.registerPropertyControl(TextInputControl);
 pluginRegistry.registerPropertyControl(SelectControl);
 pluginRegistry.registerPropertyControl(NumberControl);
 pluginRegistry.registerPropertyControl(CheckboxControl);
-pluginRegistry.registerPropertyControl(NumberControl);
 
 // Constants
 const DEFAULT_NODE_HEIGHT = 90;
