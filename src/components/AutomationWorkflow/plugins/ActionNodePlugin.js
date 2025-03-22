@@ -1,63 +1,44 @@
-import { NodeTypePlugin } from './NodeTypePlugin';
+import { createNodePlugin } from './createNodePlugin';
 import { Send } from 'lucide-react';
 
 /**
  * Action Node Plugin
- * 
+ *
  * A plugin for action node types.
  */
-export const ActionNodePlugin = new NodeTypePlugin({
+export const ActionNodePlugin = createNodePlugin({
+  // Basic node configuration
   type: 'action',
   name: 'Action',
   icon: Send,
   color: 'red',
   description: 'Performs an action',
   
+  // Use common property groups and properties
+  useCommonGroups: ['basic', 'advanced'],
+  useCommonProperties: ['title', 'subtitle'],
+  
+  // Custom property overrides
+  propertyOverrides: {
+    title: {
+      description: 'The name of this action node',
+      defaultValue: 'New Action'
+    }
+  },
+  
+  // Custom property groups
   propertyGroups: [
-    {
-      id: 'basic',
-      label: 'Basic Information',
-      description: 'Configure the basic action information',
-      collapsed: false,
-      order: 0
-    },
     {
       id: 'actionConfig',
       label: 'Action Configuration',
       description: 'Configure how this action works',
       collapsed: false,
       order: 1
-    },
-    {
-      id: 'advanced',
-      label: 'Advanced Settings',
-      description: 'Configure advanced action options',
-      collapsed: true,
-      order: 2
     }
   ],
   
+  // Custom properties
   propertySchema: [
-    {
-      id: 'title',
-      type: 'text',
-      label: 'Title',
-      description: 'The name of this action node',
-      defaultValue: 'New Action',
-      required: true,
-      groupId: 'basic',
-      order: 0
-    },
-    {
-      id: 'subtitle',
-      type: 'text',
-      label: 'Subtitle',
-      description: 'A brief description',
-      defaultValue: '',
-      required: false,
-      groupId: 'basic',
-      order: 1
-    },
     {
       id: 'actionType',
       type: 'select',
@@ -155,12 +136,8 @@ export const ActionNodePlugin = new NodeTypePlugin({
     }
   ],
   
+  // Custom validation rules
   validationRules: {
-    title: {
-      required: true,
-      minLength: 3,
-      maxLength: 50
-    },
     message: {
       required: true,
       dependency: {
@@ -191,6 +168,7 @@ export const ActionNodePlugin = new NodeTypePlugin({
     }
   },
   
+  // Initial properties
   initialProperties: {
     actionType: 'notification',
     title: 'New Action',
