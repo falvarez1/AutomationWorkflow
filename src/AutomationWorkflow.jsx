@@ -81,20 +81,6 @@ const WorkflowStep = ({ id, type, title, subtitle, position, transform, onClick,
   const [wasJustClicked, setWasJustClicked] = useState(false);
 // Calculate and cache the header height when the component mounts
 useEffect(() => {
-  // Function to calculate the header height
-  const calculateHeaderHeight = () => {
-    
-    // If we can't find the header, calculate based on canvas position
-    const canvasElement = document.getElementById('workflow-canvas');
-    if (canvasElement && nodeRef.current) {
-      const canvasRect = canvasElement.getBoundingClientRect();
-      return canvasRect.top;
-    }
-    
-    // Last resort fallback value
-    return 145;
-  };
-  
   // Calculate and store the header height in the ref
   headerHeightRef.current = calculateHeaderHeight();
   
@@ -193,6 +179,20 @@ useEffect(() => {
     }
   };
 
+    // Function to calculate the header height
+    const calculateHeaderHeight = () => {
+    
+      // If we can't find the header, calculate based on canvas position
+      const canvasElement = document.getElementById('workflow-canvas');
+      if (canvasElement && nodeRef.current) {
+        const canvasRect = canvasElement.getBoundingClientRect();
+        return canvasRect.top;
+      }
+      
+      // Last resort fallback value
+      return 145;
+    };
+
   const handleMouseDown = (e) => {
     if (e.button !== 0) return; // Only handle left-click
 
@@ -208,8 +208,10 @@ useEffect(() => {
     // Calculate X coordinate conversion from screen to canvas
     const offsetX = (e.clientX - rect.left) / safeScale;
    
+    let headerHeight = calculateHeaderHeight() || headerHeightRef.current || 0; // Fallback to 0 if headerHeight is not set
+
     // Get the current header height and apply proper scaling
-    const scaledHeaderOffset = headerHeightRef.current / safeScale;
+    const scaledHeaderOffset = headerHeight / safeScale;
     const offsetY = (e.clientY - rect.top) / safeScale + scaledHeaderOffset;
 
     setDragOffset({ x: offsetX, y: offsetY });
