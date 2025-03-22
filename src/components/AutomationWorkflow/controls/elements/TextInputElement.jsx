@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 
 /**
@@ -6,17 +6,28 @@ import PropTypes from 'prop-types';
  * 
  * A reusable text input element that handles basic text input rendering and behavior
  */
-const TextInputElement = ({ id, value, onChange, error, placeholder, ...props }) => (
-  <input
-    id={id}
-    type="text"
-    value={value || ''}
-    placeholder={placeholder}
-    className={`w-full p-2 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-    onChange={(e) => onChange(e.target.value)}
-    {...props}
-  />
-);
+const TextInputElement = ({ id: propId, value, onChange, error, placeholder, ...props }) => {
+  // Use a ref to ensure the ID remains stable across renders
+  const idRef = useRef(propId || `text-input-${Math.random().toString(36).substr(2, 9)}`);
+  const id = idRef.current;
+  
+  // Simple inline handler
+  const handleChange = (e) => {
+    onChange(e.target.value);
+  };
+  
+  return (
+    <input
+      id={id}
+      type="text"
+      value={value || ''}
+      placeholder={placeholder}
+      className={`w-full p-2 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+      onChange={handleChange}
+      {...props}
+    />
+  );
+};
 
 TextInputElement.propTypes = {
   id: PropTypes.string,
@@ -29,5 +40,8 @@ TextInputElement.propTypes = {
 TextInputElement.defaultProps = {
   placeholder: ''
 };
+
+// Add display name for debugging
+TextInputElement.displayName = 'TextInputElement';
 
 export default TextInputElement;

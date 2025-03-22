@@ -76,11 +76,12 @@ export const PropertyRenderer = ({
     // Debounce validation (wait 300ms between changes)
     validationTimerRef.current = setTimeout(() => {
       const validationEngine = new ValidationEngine(registry);
-      const validationErrors = validationEngine.validateNodeProperties(node.type, node);
-      setErrors(validationErrors);
-      
-      if (onValidate) {
-        onValidate(Object.keys(validationErrors).length === 0, validationErrors);
+      const newErrors = validationEngine.validateNodeProperties(node.type, node);
+      if (JSON.stringify(errors) !== JSON.stringify(newErrors)) {
+        setErrors(newErrors);
+        if (onValidate) {
+          onValidate(Object.keys(newErrors).length === 0, newErrors);
+        }
       }
       
       // Update ref for next comparison
@@ -92,7 +93,7 @@ export const PropertyRenderer = ({
         clearTimeout(validationTimerRef.current);
       }
     };
-  }, [node, registry, onValidate, hasNodePropertiesChanged]);
+  }, [node, registry, onValidate, hasNodePropertiesChanged, errors]);
   
   const toggleGroup = (groupId) => {
     setExpandedGroups(prev => ({
@@ -100,6 +101,12 @@ export const PropertyRenderer = ({
       [groupId]: !prev[groupId]
     }));
   };
+  
+  const handlePropertyValueChange = useCallback((propId, newValue) => {
+    if (node[propId] !== newValue) {
+      onChange(propId, newValue);
+    }
+  }, [node, onChange]);
   
   // Render property groups
   const renderGroups = () => {
@@ -165,7 +172,7 @@ export const PropertyRenderer = ({
           label={prop.label}
           description={prop.description}
           value={value}
-          onChange={(newValue) => onChange(prop.id, newValue)}
+          onChange={(newValue) => handlePropertyValueChange(prop.id, newValue)}
           error={error}
           controlProps={prop.controlProps}
         />

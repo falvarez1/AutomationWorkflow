@@ -135,7 +135,23 @@ export const ActionNodePlugin = new NodeTypePlugin({
       defaultValue: 0,
       required: false,
       groupId: 'advanced',
-      order: 0
+      order: 0,
+      controlProps: {
+        id: 'retry-inputbox' // User specified ID instead of auto-generated
+      }
+    },
+    {
+      id: 'notifyOnCompletion',
+      type: 'checkbox',
+      label: 'Notify on Completion',
+      description: 'Send a notification when this action completes',
+      defaultValue: false,
+      required: false,
+      groupId: 'advanced',
+      order: 1,
+      controlProps: {
+        id: 'notify-completion-checkbox' // User specified ID instead of auto-generated
+      }
     }
   ],
   
@@ -178,6 +194,7 @@ export const ActionNodePlugin = new NodeTypePlugin({
   initialProperties: {
     actionType: 'notification',
     title: 'New Action',
-    subtitle: ''
+    subtitle: '',
+    notifyOnCompletion: false
   }
 });

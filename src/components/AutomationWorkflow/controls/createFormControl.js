@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, memo } from 'react';
 import { PropertyControl } from './PropertyControl';
 import BaseFormControl from './BaseFormControl';
 
@@ -19,7 +19,7 @@ export const createFormControl = (config) => {
   } = config;
   
   // Create the component using BaseFormControl
-  const component = (props) => {
+  const ControlComponent = memo((props) => {
     const {
       value,
       onChange,
@@ -30,15 +30,17 @@ export const createFormControl = (config) => {
       ...rest
     } = props;
     
-    // Merge default props with passed props
+    // Use controlProps.id if available, otherwise check rest.id, then auto-generate
+    const generatedId = `${type}-control-${Math.random().toString(36).substr(2, 9)}`;
+    const idRef = useRef(controlProps.id || rest.id || generatedId);
+    const id = idRef.current;
+    
+    // Merge default props with passed props - do this inline to avoid dependencies
     const mergedProps = {
       ...defaultProps,
       ...rest,
       ...controlProps
     };
-    
-    // Create a unique ID for the input if not provided
-    const id = rest.id || `${type}-control-${Math.random().toString(36).substr(2, 9)}`;
     
     return (
       <BaseFormControl
@@ -46,22 +48,32 @@ export const createFormControl = (config) => {
         label={label}
         description={description}
         error={error}
-        renderInput={(inputProps) => renderInput({
+        renderInput={() => renderInput({
           id,
           value,
           onChange,
           error,
-          ...mergedProps,
-          ...inputProps
+          ...mergedProps
         })}
       />
     );
-  };
+  }, (prev, next) => {
+    // Only re-render if certain props changed
+    return (
+      prev.value === next.value &&
+      prev.error === next.error &&
+      prev.label === next.label &&
+      prev.description === next.description
+    );
+  });
+  
+  // Add display name for debugging
+  ControlComponent.displayName = `${type.charAt(0).toUpperCase() + type.slice(1)}Control`;
   
   // Return a PropertyControl instance
   return new PropertyControl({
     type,
-    component,
+    component: ControlComponent,
     validate,
     defaultProps
   });

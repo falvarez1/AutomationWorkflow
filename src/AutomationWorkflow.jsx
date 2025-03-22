@@ -38,7 +38,8 @@ import { NodePropertiesPanel } from './components/AutomationWorkflow/NodePropert
 import {
   TextInputControl,
   SelectControl,
-  NumberControl
+  NumberControl,
+  CheckboxControl
 } from './components/AutomationWorkflow/controls';
 
 // Register node types
@@ -47,10 +48,11 @@ pluginRegistry.registerNodeType(ControlNodePlugin);
 pluginRegistry.registerNodeType(ActionNodePlugin);
 pluginRegistry.registerNodeType(IfElseNodePlugin);
 pluginRegistry.registerNodeType(SplitFlowNodePlugin);
-
 // Register property controls
 pluginRegistry.registerPropertyControl(TextInputControl);
 pluginRegistry.registerPropertyControl(SelectControl);
+pluginRegistry.registerPropertyControl(NumberControl);
+pluginRegistry.registerPropertyControl(CheckboxControl);
 pluginRegistry.registerPropertyControl(NumberControl);
 
 // Constants
