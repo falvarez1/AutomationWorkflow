@@ -1050,16 +1050,15 @@ const AutomationWorkflow = () => {
         newPosition: newTargetPosition
       };
     }
-    
     // Create and execute AddNodeCommand
     const addCommand = new AddNodeCommand(
-      updatedSteps, // Pre-updated steps (with pushed down nodes)
       setWorkflowSteps,
       setSelectedNodeIndex,
       setAnimatingNodes,
       newStep,
       index + 1, // Insert after the current node
-      connectionsToUpdate
+      connectionsToUpdate,
+      updatedSteps // Pre-updated steps (with pushed down nodes)
     );
     
     // Execute the command
@@ -1193,8 +1192,8 @@ const AutomationWorkflow = () => {
     if (dragStartPosition.x !== currentPosition.x || dragStartPosition.y !== currentPosition.y) {
       // Create and execute a move command
       const moveCommand = new MoveNodeCommand(
-        workflowSteps,
         setWorkflowSteps,
+        null, // No need to update selection for move operations
         id,
         dragStartPosition,
         currentPosition
@@ -1319,13 +1318,13 @@ const AutomationWorkflow = () => {
     
     // Create and execute AddNodeCommand
     const addCommand = new AddNodeCommand(
-      updatedSteps,
       setWorkflowSteps,
       setSelectedNodeIndex,
       setAnimatingNodes,
       newNode,
       nodeIndex + 1, // Insert after the source node
-      connectionsToUpdate
+      connectionsToUpdate,
+      updatedSteps
     );
     
     // Execute the command
