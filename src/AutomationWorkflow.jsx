@@ -641,9 +641,9 @@ const AutomationWorkflow = () => {
     if (node.type === NODE_TYPES.IFELSE) {
       // For IFELSE nodes, we only have two valid branch IDs: 'yes' and 'no'
       if (branchId === 'yes') {
-        return { x: node.position.x - 150 + (DEFAULT_NODE_WIDTH / 2), y: startY + 100 };
+        return { x: node.position.x - 65 + (DEFAULT_NODE_WIDTH / 2), y: startY + 40 };
       } else if (branchId === 'no') {
-        return { x: node.position.x + 150 + (DEFAULT_NODE_WIDTH / 2), y: startY + 100 };
+        return { x: node.position.x + 65 + (DEFAULT_NODE_WIDTH / 2), y: startY + 40 };
       } else {
         // Return null for invalid branch IDs to prevent unwanted buttons
         return null;
