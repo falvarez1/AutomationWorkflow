@@ -61,7 +61,8 @@ import {
   BUTTON_Y_OFFSET,
   NODE_TYPES,
   CONNECTION_TYPES,
-  INITIAL_WORKFLOW_STEPS
+  INITIAL_WORKFLOW_STEPS,
+  BRANCH_EDGE_COLORS
 } from './components/AutomationWorkflow/constants';
 
 // Register node types
@@ -967,41 +968,55 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
 // Render all connector lines between nodes
 const renderConnections = useCallback(() => {
   const connectors = [];
-  // Render standard connections
-  // Render standard connections
+  
   workflowGraph.getAllEdges().forEach(edge => {
-      const sourceNode = workflowGraph.getNode(edge.sourceId);
-      const targetNode = workflowGraph.getNode(edge.targetId);
-      
-      if (!sourceNode || !targetNode) return;
-      
-      let connectionPoints;
-      
-      if (edge.type === CONNECTION_TYPES.DEFAULT) {
-        connectionPoints = calculateConnectionPoints(sourceNode, targetNode);
-      } else if (edge.type === CONNECTION_TYPES.BRANCH) {
-        connectionPoints = calculateBranchConnectionPoints(sourceNode, targetNode, edge.label);
-      }
-      
-      // Check if this edge is connected to the selected node
-      const isConnectedToSelectedNode = selectedNodeId &&
-        (edge.sourceId === selectedNodeId || edge.targetId === selectedNodeId);
-      
-      if (connectionPoints && connectionPoints.startPos && connectionPoints.endPos) {
-        connectors.push(
-          <ConnectorLine
-            key={`${edge.sourceId}-${edge.targetId}-${edge.type}-${edge.label || 'default'}`}
-            startPos={connectionPoints.startPos}
-            endPos={connectionPoints.endPos}
-            isHighlighted={isConnectedToSelectedNode}
-            label={edge.type === CONNECTION_TYPES.BRANCH ? edge.label : null}
-          />
-        );
-      }
-    });
+    const sourceNode = workflowGraph.getNode(edge.sourceId);
+    const targetNode = workflowGraph.getNode(edge.targetId);
     
-    return connectors;
-  }, [workflowGraph, calculateConnectionPoints, calculateBranchConnectionPoints, selectedNodeId]);
+    if (!sourceNode || !targetNode) return;
+    
+    let connectionPoints;
+    let edgeColor = BRANCH_EDGE_COLORS.DEFAULT; // Default gray color
+    
+    if (edge.type === CONNECTION_TYPES.DEFAULT) {
+      connectionPoints = calculateConnectionPoints(sourceNode, targetNode);
+    } else if (edge.type === CONNECTION_TYPES.BRANCH) {
+      connectionPoints = calculateBranchConnectionPoints(sourceNode, targetNode, edge.label);
+      
+      // Apply color based on node type and branch label
+      if (sourceNode.type === NODE_TYPES.IFELSE) {
+        if (edge.label === 'yes') {
+          edgeColor = BRANCH_EDGE_COLORS.IFELSE.YES;
+        } else if (edge.label === 'no') {
+          edgeColor = BRANCH_EDGE_COLORS.IFELSE.NO;
+        }
+      } else if (sourceNode.type === NODE_TYPES.SPLITFLOW) {
+        // For split flow, use branch-specific colors or default
+        const branchKey = `BRANCH_${edge.label}`;
+        edgeColor = BRANCH_EDGE_COLORS.SPLITFLOW[branchKey] || BRANCH_EDGE_COLORS.SPLITFLOW.DEFAULT;
+      }
+    }
+    
+    // Check if this edge is connected to the selected node
+    const isConnectedToSelectedNode = selectedNodeId &&
+      (edge.sourceId === selectedNodeId || edge.targetId === selectedNodeId);
+    
+    if (connectionPoints && connectionPoints.startPos && connectionPoints.endPos) {
+      connectors.push(
+        <ConnectorLine
+          key={`${edge.sourceId}-${edge.targetId}-${edge.type}-${edge.label || 'default'}`}
+          startPos={connectionPoints.startPos}
+          endPos={connectionPoints.endPos}
+          isHighlighted={isConnectedToSelectedNode}
+          label={edge.type === CONNECTION_TYPES.BRANCH ? edge.label : null}
+          color={edgeColor}
+        />
+      );
+    }
+  });
+  
+  return connectors;
+}, [workflowGraph, calculateConnectionPoints, calculateBranchConnectionPoints, selectedNodeId]);
   
   // Render add node buttons on edge lines
   const renderAddNodeButtons = useCallback(() => {

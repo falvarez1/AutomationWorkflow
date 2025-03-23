@@ -118,7 +118,7 @@ const WorkflowStep = ({
         };
       case NODE_TYPES.SPLITFLOW:
         return {
-          label: <span className="px-3 py-1 text-sm font-medium text-white bg-green-500 rounded">Split Flow</span>,
+          label: <span className="px-3 py-1 text-sm font-medium text-white whitespace-nowrap bg-green-500 rounded">Split Flow</span>,
           icon: <GitMerge className="w-6 h-6 text-green-500" />,
           borderColor: 'border-green-200',
           hoverColor: 'hover:border-green-400',

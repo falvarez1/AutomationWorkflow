@@ -1,10 +1,13 @@
 import React from 'react';
+import { BRANCH_EDGE_COLORS, EDGE_HIGHLIGHT_CONFIG } from '../constants';
 
-// Connector Line Component with Bezier Curves for smoother connections
-const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }) => {
-  // Use the positions as passed in - they're already positioned correctly
-  // The startPos is the center bottom of the source node
-  // The endPos is the center top of the target node
+const ConnectorLine = ({ 
+  startPos, 
+  endPos, 
+  isHighlighted, 
+  label, 
+  color = BRANCH_EDGE_COLORS.DEFAULT // Default color if not specified
+}) => {
   const startX = startPos.x;
   const startY = startPos.y;
   const endX = endPos.x;
@@ -20,7 +23,6 @@ const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }
   const ctrl2Y = endY - curveStrength;
 
   // Calculate label placement - position it closer to the source node for branches
-  // This moves it to 1/4 of the way along the connection instead of the midpoint
   const labelPosition = label ? 0.3 : 0.5; // Closer to source if it has a label
   const midX = startX + (endX - startX) * labelPosition;
   const midY = startY + (endY - startY) * labelPosition;
@@ -28,11 +30,15 @@ const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }
   // For branch labels, position them higher up to avoid button overlap
   const labelOffsetY = label ? -15 : 0;
 
+  // Use the appropriate highlight color based on settings
+  const highlightStroke = EDGE_HIGHLIGHT_CONFIG.PRESERVE_COLOR ? color : BRANCH_EDGE_COLORS.HIGHLIGHTED;
+  
+  // Build path style with configuration options
   const pathStyle = {
-    stroke: isHighlighted ? '#3B82F6' : '#D1D5DB',
-    strokeWidth: isHighlighted ? 3 : 2,
+    stroke: isHighlighted ? highlightStroke : color,
+    strokeWidth: isHighlighted && EDGE_HIGHLIGHT_CONFIG.INCREASE_WIDTH ? 3 : 2,
     fill: 'none',
-    strokeDasharray: isHighlighted ? '5,5' : 'none'
+    strokeDasharray: isHighlighted && EDGE_HIGHLIGHT_CONFIG.USE_DASHED_LINE ? '5,5' : 'none'
   };
 
   return (
@@ -51,7 +57,7 @@ const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }
             rx="4"
             ry="4"
             fill="white"
-            stroke={isHighlighted ? '#3B82F6' : '#D1D5DB'}
+            stroke={isHighlighted ? highlightStroke : color}
             strokeWidth="1"
           />
           <text
@@ -60,7 +66,7 @@ const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }
             textAnchor="middle"
             fontSize="12"
             fontFamily="Arial, sans-serif"
-            fill={isHighlighted ? '#3B82F6' : '#6B7280'}
+            fill={isHighlighted ? (EDGE_HIGHLIGHT_CONFIG.PRESERVE_COLOR ? '#6B7280' : highlightStroke) : '#6B7280'}
           >
             {label}
           </text>
