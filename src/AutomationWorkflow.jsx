@@ -1,34 +1,26 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import {
-  ArrowLeft,
-  Edit2,
   Send,
   Plus,
-  ChevronRight,
   Hexagon,
   Zap,
   ZoomIn,
   ZoomOut,
   Maximize,
-  Move,
   GitBranch,
   GitMerge,
-  Trash2,
-  Copy,
   RotateCcw,
   RotateCw
 } from 'lucide-react';
 
 // Import Graph and command pattern components
 import { Graph } from './components/AutomationWorkflow/graph/Graph';
-import { 
+import {
   commandManager,
   AddNodeCommand,
   MoveNodeCommand,
   DeleteNodeCommand,
-  UpdateNodeCommand,
-  UpdateEdgeCommand
+  UpdateNodeCommand
 } from './components/AutomationWorkflow/commands';
 
 // Import the plugin registry and plugins
@@ -38,6 +30,11 @@ import { ControlNodePlugin } from './components/AutomationWorkflow/plugins/Contr
 import { ActionNodePlugin } from './components/AutomationWorkflow/plugins/ActionNodePlugin';
 import { IfElseNodePlugin } from './components/AutomationWorkflow/plugins/IfElseNodePlugin';
 import { SplitFlowNodePlugin } from './components/AutomationWorkflow/plugins/SplitFlowNodePlugin';
+
+// Import UI components
+import WorkflowStep from './components/AutomationWorkflow/ui/WorkflowStep';
+import ConnectorLine from './components/AutomationWorkflow/ui/ConnectorLine';
+import AddNodeButton from './components/AutomationWorkflow/ui/AddNodeButton';
 
 // Import the NodePropertiesPanel
 import { NodePropertiesPanel } from './components/AutomationWorkflow/NodeProperties';
@@ -79,518 +76,6 @@ pluginRegistry.registerPropertyControl(SelectControl);
 pluginRegistry.registerPropertyControl(NumberControl);
 pluginRegistry.registerPropertyControl(CheckboxControl);
 
-// Draggable Workflow Step Component
-const WorkflowStep = ({ id, type, title, subtitle, position, transform, onClick, onDragStart, onDrag, onDragEnd, onHeightChange, isNew, isAnimating, isSelected, contextMenuConfig: propContextMenuConfig }) => {
-  const nodeRef = useRef(null);
-  const headerHeightRef = useRef(null); // Ref to cache the calculated header height
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isHovering, setIsHovering] = useState(false);
-  const [, setNodeHeight] = useState(DEFAULT_NODE_HEIGHT); // Only the setter is used
-  const [hasRendered, setHasRendered] = useState(false);
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuConfig] = useState(propContextMenuConfig || {
-    position: 'right', // default position - now on the right
-    offsetX: -5,
-    offsetY: 0,
-    orientation: 'vertical' // default orientation - vertical menu
-  });
-  const [wasJustClicked, setWasJustClicked] = useState(false);
-  
-  // Calculate and cache the header height when the component mounts
-  useEffect(() => {
-    // Calculate and store the header height in the ref
-    headerHeightRef.current = calculateHeaderHeight();
-    
-    // Recalculate on window resize for responsive layouts
-    const handleResize = () => {
-      headerHeightRef.current = calculateHeaderHeight();
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []); // Empty dependency array means this runs once on mount
-
-  // Show context menu when hovering or selected
-  useEffect(() => {
-    setShowContextMenu(isHovering || isSelected);
-  }, [isHovering, isSelected]);
-
-  // Handle initial animation after first render
-  useEffect(() => {
-    if (isNew && !hasRendered) {
-      setTimeout(() => {
-        setHasRendered(true);
-      }, 50);
-    }
-  }, [isNew, hasRendered]);
-
-  // Prevent deselection when clicking directly on a node
-  useEffect(() => {
-    if (wasJustClicked) {
-      // Reset the flag after a short delay
-      const timer = setTimeout(() => {
-        setWasJustClicked(false);
-      }, 100);
-
-      return () => clearTimeout(timer);
-    }
-  }, [wasJustClicked]);
-
-  // Different styles based on step type
-  const getTypeConfig = () => {
-    switch (type) {
-      case NODE_TYPES.TRIGGER:
-        return {
-          label: <span className="px-3 py-1 text-sm font-medium text-white bg-blue-500 rounded">Trigger</span>,
-          icon: <Zap className="w-6 h-6 text-blue-500" />,
-          borderColor: 'border-blue-200',
-          hoverColor: 'hover:border-blue-400',
-          selectedColor: 'border-blue-500',
-          bgHover: 'hover:bg-blue-50'
-        };
-      case NODE_TYPES.CONTROL:
-        return {
-          label: <span className="px-3 py-1 text-sm font-medium text-white bg-purple-500 rounded">Control</span>,
-          icon: <Hexagon className="w-6 h-6 text-purple-500" />,
-          borderColor: 'border-purple-200',
-          hoverColor: 'hover:border-purple-400',
-          selectedColor: 'border-purple-500',
-          bgHover: 'hover:bg-purple-50'
-        };
-      case NODE_TYPES.ACTION:
-        return {
-          label: <span className="px-3 py-1 text-sm font-medium text-white bg-red-500 rounded">Action</span>,
-          icon: <Zap className="w-6 h-6 text-red-500" />,
-          borderColor: 'border-red-200',
-          hoverColor: 'hover:border-red-400',
-          selectedColor: 'border-red-500',
-          bgHover: 'hover:bg-red-50'
-        };
-      case NODE_TYPES.IFELSE:
-        return {
-          label: <span className="px-3 py-1 text-sm font-medium text-white bg-indigo-500 rounded">If/Else</span>,
-          icon: <GitBranch className="w-6 h-6 text-indigo-500" />,
-          borderColor: 'border-indigo-200',
-          hoverColor: 'hover:border-indigo-400',
-          selectedColor: 'border-indigo-500',
-          bgHover: 'hover:bg-indigo-50'
-        };
-      case NODE_TYPES.SPLITFLOW:
-        return {
-          label: <span className="px-3 py-1 text-sm font-medium text-white bg-green-500 rounded">Split Flow</span>,
-          icon: <GitMerge className="w-6 h-6 text-green-500" />,
-          borderColor: 'border-green-200',
-          hoverColor: 'hover:border-green-400',
-          selectedColor: 'border-green-500',
-          bgHover: 'hover:bg-green-50'
-        };
-      default:
-        return {
-          label: null,
-          icon: null,
-          borderColor: 'border-gray-200',
-          hoverColor: 'hover:border-gray-400',
-          selectedColor: 'border-gray-500',
-          bgHover: 'hover:bg-gray-50'
-        };
-    }
-  };
-
-    // Function to calculate the header height
-    const calculateHeaderHeight = () => {
-    
-      // If we can't find the header, calculate based on canvas position
-      const canvasElement = document.getElementById('workflow-canvas');
-      if (canvasElement && nodeRef.current) {
-        const canvasRect = canvasElement.getBoundingClientRect();
-        return canvasRect.top;
-      }
-      
-      // Last resort fallback value
-      return 145;
-    };
-
-  const handleMouseDown = (e) => {
-    if (e.button !== 0) return; // Only handle left-click
-
-    // Set the clicked flag to prevent deselection
-    setWasJustClicked(true);
-
-    // Calculate the offset between mouse position and element position
-    const rect = nodeRef.current.getBoundingClientRect();
-
-    // Prevent division by zero or negative scale values
-    const safeScale = Math.max(transform.scale, 0.1);
-    
-    // Calculate X coordinate conversion from screen to canvas
-    const offsetX = (e.clientX - rect.left) / safeScale;
-   
-    let headerHeight = calculateHeaderHeight() || headerHeightRef.current || 0; // Fallback to 0 if headerHeight is not set
-
-    // Get the current header height and apply proper scaling
-    const scaledHeaderOffset = headerHeight / safeScale;
-    const offsetY = (e.clientY - rect.top) / safeScale + scaledHeaderOffset;
-
-    setDragOffset({ x: offsetX, y: offsetY });
-    setIsDragging(true);
-
-    if (onDragStart) {
-      onDragStart(id, position);
-    }
-
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e) => {
-      if (onDrag) {
-        // Apply a smoother drag by using requestAnimationFrame
-        requestAnimationFrame(() => {
-          // Convert screen coordinates to canvas coordinates
-          const canvasX = (e.clientX - transform.x) / transform.scale;
-          const canvasY = (e.clientY - transform.y) / transform.scale;
-
-          // Then apply the offset
-          const newX = canvasX - dragOffset.x;
-          const newY = canvasY - dragOffset.y;
-          onDrag(id, newX, newY);
-        });
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      if (onDragEnd) {
-        onDragEnd(id);
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, id, dragOffset, onDrag, onDragEnd, transform]);
-
-  const config = getTypeConfig();
-
-  // Measure actual node height using ResizeObserver
-  useEffect(() => {
-    if (!nodeRef.current) return;
-
-    const observer = new ResizeObserver(entries => {
-      const height = entries[0].contentRect.height;
-      setNodeHeight(height);
-
-      // Report height change to parent component
-      if (onHeightChange) {
-        onHeightChange(id, height);
-      }
-    });
-
-    observer.observe(nodeRef.current);
-    return () => observer.disconnect();
-  }, [id, onHeightChange]);
-
-  // Determine the appropriate styles based on state
-  const style = {
-    position: 'absolute',
-    left: position.x + 'px',
-    top: position.y + 'px',
-    width: `${DEFAULT_NODE_WIDTH}px`,
-    height: 'auto', // Allow for natural height based on content
-    zIndex: isDragging ? 100 : (isSelected ? 50 : 10), // Always above connection lines
-    cursor: isDragging ? 'grabbing' : 'grab',
-    opacity: isNew && !hasRendered ? 0 : 1,
-    transform: isNew && !hasRendered ? 'scale(0.9)' : 'scale(1)',
-    transition: isDragging
-      ? 'none'
-      : 'left 0.3s ease, top 0.3s ease, opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s, border-color 0.2s'
-  };
-
-  // Handle context menu actions
-  const handleContextMenuAction = (actionId) => {
-    // Action triggered for node
-    // Pass the action up to parent component if needed
-    if (onClick) {
-      onClick(id, actionId);
-    }
-  };
-
-  return (
-    <div
-      ref={nodeRef}
-      style={style}
-      data-node-id={id}
-      data-node-element="true"
-      data-was-just-clicked={wasJustClicked ? "true" : "false"}
-      className={`p-4 bg-white border-2 ${isSelected ? config.selectedColor : config.borderColor} ${!isDragging && config.hoverColor} rounded-lg ${isDragging ? 'shadow-xl' : 'shadow-sm hover:shadow-md'} ${config.bgHover}`}
-      onMouseDown={handleMouseDown}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-      onClick={(e) => {
-        if (!isDragging && onClick) {
-          onClick(id);
-          e.stopPropagation();
-        }
-      }}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center">
-          <div className={`p-2 rounded-lg border ${isSelected ? 'border-gray-300 bg-gray-50' : 'border-gray-200'} mr-3`}>
-            {config.icon}
-          </div>
-          <div>
-            <h3 className="font-medium text-gray-900">{title}</h3>
-            {subtitle && <p className="text-gray-500 text-sm mt-1">{subtitle}</p>}
-          </div>
-        </div>
-        <div className="flex items-center">
-          {config.label}
-        </div>
-      </div>
-
-      {/* Floating context menu */}
-      <NodeContextMenu
-        visible={showContextMenu}
-        nodeType={type}
-        onAction={handleContextMenuAction}
-        menuPosition={contextMenuConfig.position}
-        offsetX={contextMenuConfig.offsetX}
-        offsetY={contextMenuConfig.offsetY}
-        orientation={contextMenuConfig.orientation}
-      />
-
-      {isDragging && (
-        <div className="absolute inset-0 border-2 border-dashed border-gray-300 rounded-lg pointer-events-none"></div>
-      )}
-    </div>
-  );
-};
-
-// Node Context Menu Component for displaying actions when hovering over a node
-const NodeContextMenu = ({ position, nodeType, visible, onAction, menuPosition = 'bottom', offsetX = 0, offsetY = 0, orientation = 'vertical' }) => {
-  if (!visible) return null;
-
-  // Default menu items based on node type
-  const getMenuItems = () => {
-    const commonItems = [
-      { id: 'edit', icon: <Edit2 className="w-4 h-4" />, label: 'Edit' },
-      { id: 'duplicate', icon: <Copy className="w-4 h-4" />, label: 'Duplicate' },
-      { id: 'delete', icon: <Trash2 className="w-4 h-4 text-red-500" />, label: 'Delete' }
-    ];
-
-    return commonItems;
-  };
-
-  // Calculate menu position based on configuration
-  const getMenuStyles = () => {
-    const baseStyle = {
-      position: 'absolute',
-      zIndex: 100
-    };
-
-    // Apply the configured position and offsets
-    switch (menuPosition) {
-      case 'top':
-        return {
-          ...baseStyle,
-          bottom: '100%',
-          left: `50%`,
-          transform: `translateX(-50%) translateY(-${offsetY}px) translateX(${offsetX}px)`,
-          marginBottom: '8px'
-        };
-      case 'right':
-        return {
-          ...baseStyle,
-          left: `100%`,
-          top: '50%',
-          transform: `translateY(-50%) translateX(${offsetX}px) translateY(${offsetY}px)`,
-          marginLeft: '8px'
-        };
-      case 'left':
-        return {
-          ...baseStyle,
-          right: `100%`,
-          top: '50%',
-          transform: `translateY(-50%) translateX(-${offsetX}px) translateY(${offsetY}px)`,
-          marginRight: '8px'
-        };
-      case 'bottom':
-      default:
-        return {
-          ...baseStyle,
-          top: '100%',
-          left: `50%`,
-          transform: `translateX(-50%) translateY(${offsetY}px) translateX(${offsetX}px)`,
-          marginTop: '8px'
-        };
-    }
-  };
-
-  const menuItems = getMenuItems();
-  const menuStyles = getMenuStyles();
-
-  // Determine flex direction and spacing based on orientation
-  const isVertical = orientation === 'vertical';
-  const containerClass = isVertical
-    ? "flex flex-col space-y-1"
-    : "flex flex-row space-x-1";
-
-  return (
-    <div
-      className="bg-white rounded-lg shadow-lg border border-gray-200 p-1 animate-fadeIn node-context-menu"
-      style={menuStyles}
-    >
-      <div className={containerClass}>
-        {menuItems.map(item => (
-          <button
-            key={item.id}
-            className="p-2 hover:bg-gray-100 rounded-md flex items-center justify-center w-9 h-9 transition-colors"
-            onClick={() => onAction(item.id)}
-            title={item.label}
-          >
-            {item.icon}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Connector Line Component with Bezier Curves for smoother connections
-const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }) => {
-  // Use the positions as passed in - they're already positioned correctly
-  // The startPos is the center bottom of the source node
-  // The endPos is the center top of the target node
-  const startX = startPos.x;
-  const startY = startPos.y;
-  const endX = endPos.x;
-  const endY = endPos.y;
-
-  // Calculate distance and control points
-  const distance = Math.abs(endY - startY);
-  const curveStrength = Math.min(distance * 0.4, 100);
-
-  const ctrl1X = startX;
-  const ctrl1Y = startY + curveStrength;
-  const ctrl2X = endX;
-  const ctrl2Y = endY - curveStrength;
-
-  // Calculate label placement - position it closer to the source node for branches
-  // This moves it to 1/4 of the way along the connection instead of the midpoint
-  const labelPosition = label ? 0.3 : 0.5; // Closer to source if it has a label
-  const midX = startX + (endX - startX) * labelPosition;
-  const midY = startY + (endY - startY) * labelPosition;
-  
-  // For branch labels, position them higher up to avoid button overlap
-  const labelOffsetY = label ? -15 : 0;
-
-  const pathStyle = {
-    stroke: isHighlighted ? '#3B82F6' : '#D1D5DB',
-    strokeWidth: isHighlighted ? 3 : 2,
-    fill: 'none',
-    strokeDasharray: isHighlighted ? '5,5' : 'none'
-  };
-
-  return (
-    <>
-      <path
-        d={`M ${startX} ${startY} C ${ctrl1X} ${ctrl1Y}, ${ctrl2X} ${ctrl2Y}, ${endX} ${endY}`}
-        style={pathStyle}
-      />
-      {label && (
-        <g transform={`translate(${midX}, ${midY + labelOffsetY})`}>
-          <rect
-            x="-30"
-            y="-12"
-            width="60"
-            height="24"
-            rx="4"
-            ry="4"
-            fill="white"
-            stroke={isHighlighted ? '#3B82F6' : '#D1D5DB'}
-            strokeWidth="1"
-          />
-          <text
-            x="0"
-            y="5"
-            textAnchor="middle"
-            fontSize="12"
-            fontFamily="Arial, sans-serif"
-            fill={isHighlighted ? '#3B82F6' : '#6B7280'}
-          >
-            {label}
-          </text>
-        </g>
-      )}
-    </>
-  );
-};
-
-// Add Node Button Component with integrated menu
-const AddNodeButton = ({ position, nodeWidth, buttonSize, onAdd, isHighlighted = false, onMouseEnter, onMouseLeave, showMenu = false, sourceNodeId = 'none', sourceType = 'standard' }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const buttonRef = useRef(null); // Add ref to get button position for menu
-  
-  // Handle mouse events directly instead of using isMenuHovered state
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-    onMouseEnter?.();
-  };
-  
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-    onMouseLeave?.();
-  };
-  
-  return (
-    <div
-      ref={buttonRef}
-      style={{
-        position: 'absolute',
-        left: (position.x - (buttonSize / 2)) + 'px', // Center directly on the position point
-        top: (position.y - (buttonSize / 2)) + 'px', // Center vertically too
-        zIndex: 5, // Between lines (0) and nodes (10+)
-      }}
-      data-node-element="true"
-      data-source-node-id={sourceNodeId}
-      data-button-type={sourceType}
-      className="add-node-button"
-    >
-      <button
-        style={{
-          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s'
-        }}
-        onClick={(e) => {
-          onAdd(e);
-          e.stopPropagation();
-        }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className={`flex items-center justify-center w-10 h-10 rounded-full
-          ${isHovered || isHighlighted ? 'bg-blue-600 shadow-lg transform scale-110' : 'bg-blue-500 shadow'}
-          text-white focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2`}
-      >
-        <Plus className="w-6 h-6" />
-        
-        {/* Show tooltip on hover (only if menu is not shown) */}
-        {isHovered && !showMenu && (
-          <div className="absolute top-full mt-2 bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50">
-            Add node
-          </div>
-        )}
-      </button>
-    </div>
-  );
-};
-
 // Main Automation Workflow Component
 const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) => {
   // Canvas pan and zoom state
@@ -614,8 +99,7 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [activeAddButtonNodeId, setActiveAddButtonNodeId] = useState(null);
   const [activeBranchButton, setActiveBranchButton] = useState(null);
-  const [snapToGrid, setSnapToGrid] = useState(true);
-  const [highlightedConnection, setHighlightedConnection] = useState(null);
+  const [snapToGrid] = useState(true); // We're not changing this, so no need for setter
   const [dragStartPosition, setDragStartPosition] = useState(null);
   
   // Convert graph nodes to array for rendering compatibility
@@ -922,26 +406,6 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
   // Helper functions
   const generateUniqueId = () => `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  // Create a new node with the specified properties
-  const createNewNode = useCallback((nodeType, position, overrides = {}) => {
-    // Get any initial properties from the node plugin
-    const nodePlugin = pluginRegistry.getNodeType(nodeType);
-    const initialProps = nodePlugin.getInitialProperties ? nodePlugin.getInitialProperties() : {};
-    
-    return {
-      id: generateUniqueId(),
-      type: nodeType,
-      position,
-      height: DEFAULT_NODE_HEIGHT,
-      isNew: true,
-      contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
-      title: getDefaultTitle(nodeType),
-      subtitle: getDefaultSubtitle(nodeType),
-      ...initialProps,
-      ...overrides
-    };
-  }, []);
-
   // Helper functions for default node properties
   const getDefaultTitle = useCallback((nodeType) => {
     switch (nodeType) {
@@ -976,6 +440,26 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
         return 'Configure properties';
     }
   }, []);
+  
+  // Create a new node with the specified properties
+  const createNewNode = useCallback((nodeType, position, overrides = {}) => {
+    // Get any initial properties from the node plugin
+    const nodePlugin = pluginRegistry.getNodeType(nodeType);
+    const initialProps = nodePlugin.getInitialProperties ? nodePlugin.getInitialProperties() : {};
+    
+    return {
+      id: generateUniqueId(),
+      type: nodeType,
+      position,
+      height: DEFAULT_NODE_HEIGHT,
+      isNew: true,
+      contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
+      title: getDefaultTitle(nodeType),
+      subtitle: getDefaultSubtitle(nodeType),
+      ...initialProps,
+      ...overrides
+    };
+  }, [getDefaultTitle, getDefaultSubtitle]);
 
   // Handle adding a new step
   const handleAddStep = useCallback((nodeId, nodeType, connectionType = CONNECTION_TYPES.DEFAULT, branchId = null) => {
@@ -1416,8 +900,6 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
     // Don't show menu if node doesn't exist
     if (!workflowGraph.getNode(nodeId)) return;
     
-    console.log(`Branch edge menu clicked: Node ${nodeId}, Branch ${branchId}`);
-    
     // Toggle the active branch button
     setActiveBranchButton(prev => {
       if (prev && prev.nodeId === nodeId && prev.branchId === branchId) {
@@ -1506,7 +988,7 @@ const renderConnections = useCallback(() => {
   // Render add node buttons on edge lines
   const renderAddNodeButtons = useCallback(() => {
     const buttons = [];
-    
+    console.log('Rendering add node buttons...');
     // Render a button on each edge connection line (midway between source and target)
     workflowGraph.getAllEdges().forEach((edge) => {
       const sourceNode = workflowGraph.getNode(edge.sourceId);
@@ -1547,7 +1029,7 @@ const renderConnections = useCallback(() => {
             activeBranchButton.branchId === edge.label
           : activeAddButtonNodeId === edge.sourceId;
             
-        console.log(`Rendering button for edge: ${edge.sourceId} -> ${edge.targetId}, type: ${edge.type}, label: ${edge.label}`);
+     //   console.log(`Rendering button for edge: ${edge.sourceId} -> ${edge.targetId}, type: ${edge.type}, label: ${edge.label}`);
         
         buttons.push(
           <AddNodeButton
@@ -1716,8 +1198,8 @@ const renderConnections = useCallback(() => {
     handleShowBranchEndpointMenu,
     calculateConnectionPoints,
     calculateBranchConnectionPoints,
-    getBranchEndpoint,
-    pluginRegistry
+    getBranchEndpoint
+    // pluginRegistry is not needed as a dependency as it's an imported singleton
   ]);
   
   // Render the add node menu when active

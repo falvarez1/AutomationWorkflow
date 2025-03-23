@@ -1,6 +1,7 @@
 import React, { useRef, memo } from 'react';
 import { PropertyControl } from './PropertyControl';
 import BaseFormControl from './BaseFormControl';
+import { validate } from '../validation';
 
 /**
  * Factory function to create a form control
@@ -14,7 +15,8 @@ export const createFormControl = (config) => {
   const {
     type,
     renderInput,
-    validate,
+    validate: validateFn,
+    getValidationRules,
     defaultProps = {}
   } = config;
   
@@ -74,7 +76,8 @@ export const createFormControl = (config) => {
   return new PropertyControl({
     type,
     component: ControlComponent,
-    validate,
+    validate: validateFn,
+    getValidationRules,
     defaultProps
   });
 };
