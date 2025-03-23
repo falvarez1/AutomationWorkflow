@@ -1,54 +1,37 @@
-import { NodeTypePlugin } from './NodeTypePlugin';
+import { createNodePlugin } from './createNodePlugin';
 import { GitMerge } from 'lucide-react';
 
 /**
  * Split Flow Node Plugin
  *
- * A plugin for splitting the flow based on user attributes.
+ * A plugin for splitting the workflow into multiple parallel paths.
  */
-export const SplitFlowNodePlugin = new NodeTypePlugin({
+export const SplitFlowNodePlugin = createNodePlugin({
+  // Basic node configuration
   type: 'splitflow',
   name: 'Split Flow',
   icon: GitMerge,
   color: 'green',
-  description: 'Split workflow into multiple paths based on user attributes',
+  description: 'Split workflow into multiple parallel paths',
   
-  // Dynamic branches - will be generated based on configuration
-  // The base class will provide a method to get actual branches
-  getBranchesFromProps: (props) => {
-    // Default branches if not fully configured
-    if (!props || !props.branchValues || !props.branchValues.length) {
-      return [
-        { id: 'default', label: 'Default Path', description: 'Default branch when no conditions matched' },
-        { id: 'other', label: 'All Others', description: 'All other values' }
-      ];
+  // Use common property groups and properties
+  useCommonGroups: ['basic'],
+  useCommonProperties: ['title', 'subtitle'],
+  
+  // Custom property overrides
+  propertyOverrides: {
+    title: {
+      description: 'The name of this split flow node',
+      defaultValue: 'Split flow'
+    },
+    subtitle: {
+      description: 'A brief description of the parallel paths',
+      defaultValue: 'Execute multiple paths in parallel'
     }
-    
-    // Create branches from the configured values
-    const branches = props.branchValues.map((value, index) => ({
-      id: `branch_${index}`,
-      label: value,
-      description: `Path for ${props.splitAttribute} = ${value}`
-    }));
-    
-    // Always add "All Others" branch as the catch-all
-    branches.push({
-      id: 'other',
-      label: 'All Others',
-      description: 'Path for all other values'
-    });
-    
-    return branches;
   },
   
+  // Custom property groups
   propertyGroups: [
-    {
-      id: 'basic',
-      label: 'Basic Information',
-      description: 'Configure the basic split information',
-      collapsed: false,
-      order: 0
-    },
     {
       id: 'splitConfig',
       label: 'Split Configuration',
@@ -59,32 +42,29 @@ export const SplitFlowNodePlugin = new NodeTypePlugin({
     {
       id: 'branchConfig',
       label: 'Branch Configuration',
-      description: 'Configure the branch values',
+      description: 'Configure the branch paths',
       collapsed: false,
       order: 2
     }
   ],
   
+  // Custom properties
   propertySchema: [
     {
-      id: 'title',
-      type: 'text',
-      label: 'Title',
-      description: 'The name of this split node',
-      defaultValue: 'Split flow',
+      id: 'pathCount',
+      type: 'select',
+      label: 'Number of Parallel Paths',
+      description: 'How many parallel paths to create',
+      defaultValue: '2',
       required: true,
-      groupId: 'basic',
-      order: 0
-    },
-    {
-      id: 'subtitle',
-      type: 'text',
-      label: 'Subtitle',
-      description: 'A brief description of the split',
-      defaultValue: 'Split based on First name',
-      required: false,
-      groupId: 'basic',
-      order: 1
+      groupId: 'splitConfig',
+      order: 0,
+      controlProps: {
+        options: [
+          { value: '2', label: '2 Paths' },
+          { value: '3', label: '3 Paths' }
+        ]
+      }
     },
     {
       id: 'splitAttribute',
@@ -94,7 +74,7 @@ export const SplitFlowNodePlugin = new NodeTypePlugin({
       defaultValue: 'first_name',
       required: true,
       groupId: 'splitConfig',
-      order: 0,
+      order: 1,
       controlProps: {
         options: [
           { value: 'first_name', label: 'First Name' },
@@ -114,26 +94,77 @@ export const SplitFlowNodePlugin = new NodeTypePlugin({
       defaultValue: '',
       required: false,
       groupId: 'splitConfig',
-      order: 1,
+      order: 2,
       visibilityCondition: (props) => props.splitAttribute === 'custom_attribute'
     },
     {
-      id: 'branchValues',
+      id: 'path1Name',
       type: 'text',
-      label: 'Branch Values',
-      description: 'Comma-separated list of branch values (e.g., "Fred, Jane, Bob")',
-      defaultValue: 'Fred',
+      label: 'Path 1 Name',
+      description: 'Name for parallel path 1',
+      defaultValue: 'Path 1',
       required: true,
       groupId: 'branchConfig',
       order: 0
+    },
+    {
+      id: 'path2Name',
+      type: 'text',
+      label: 'Path 2 Name',
+      description: 'Name for parallel path 2',
+      defaultValue: 'Path 2',
+      required: true,
+      groupId: 'branchConfig',
+      order: 1
+    },
+    {
+      id: 'path3Name',
+      type: 'text',
+      label: 'Path 3 Name',
+      description: 'Name for parallel path 3',
+      defaultValue: 'Path 3',
+      required: false,
+      groupId: 'branchConfig',
+      order: 2,
+      visibilityCondition: (props) => props.pathCount === '3'
     }
   ],
   
+  // Define the branches generation function for this node type
+  getBranchesFromProps: (props) => {
+    // Create branches based on pathCount
+    const branches = [];
+    
+    // Add Path 1
+    branches.push({
+      id: 'path1',
+      label: props.path1Name || 'Path 1',
+      description: `Parallel path 1`
+    });
+    
+    // Add Path 2
+    branches.push({
+      id: 'path2',
+      label: props.path2Name || 'Path 2',
+      description: `Parallel path 2`
+    });
+    
+    // Add Path 3 if configured
+    if (props.pathCount === '3') {
+      branches.push({
+        id: 'path3',
+        label: props.path3Name || 'Path 3',
+        description: `Parallel path 3`
+      });
+    }
+    
+    return branches;
+  },
+  
+  // Custom validation rules (inherits common ones for title/subtitle)
   validationRules: {
-    title: {
-      required: true,
-      minLength: 3,
-      maxLength: 50
+    pathCount: {
+      required: true
     },
     splitAttribute: {
       required: true
@@ -142,28 +173,42 @@ export const SplitFlowNodePlugin = new NodeTypePlugin({
       required: (props) => props.splitAttribute === 'custom_attribute',
       minLength: 1
     },
-    branchValues: {
+    path1Name: {
       required: true,
+      minLength: 1
+    },
+    path2Name: {
+      required: true,
+      minLength: 1
+    },
+    path3Name: {
+      required: (props) => props.pathCount === '3',
       minLength: 1
     }
   },
   
+  // Initial properties (will be merged with defaults for common properties)
   initialProperties: {
     title: 'Split flow',
-    subtitle: 'Split based on First name',
+    subtitle: 'Execute multiple paths in parallel',
+    pathCount: '2',
     splitAttribute: 'first_name',
     customAttributeName: '',
-    branchValues: 'Fred'
+    path1Name: 'Path 1',
+    path2Name: 'Path 2',
+    path3Name: 'Path 3'
   },
   
-  // Custom preprocessor to convert branchValues string to array before use
+  // Custom preprocessor for properties
   preprocessProperties: (props) => {
-    if (props.branchValues && typeof props.branchValues === 'string') {
-      return {
-        ...props,
-        branchValuesArray: props.branchValues.split(',').map(val => val.trim()).filter(val => val)
-      };
-    }
-    return props;
+    // Ensure pathCount is treated as a string for consistency
+    const pathCount = typeof props.pathCount === 'number'
+      ? String(props.pathCount)
+      : (props.pathCount || '2');
+    
+    return {
+      ...props,
+      pathCount
+    };
   }
 });

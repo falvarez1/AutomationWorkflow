@@ -66,7 +66,7 @@ export const INITIAL_WORKFLOW_STEPS = [
     height: DEFAULT_NODE_HEIGHT,
     contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     outgoingConnections: {
-      default: { targetNodeId: null } // Can connect to another node if needed
+      default: { targetNodeId: "split-flow-node" } // Connect to our new splitflow node
     }
   },
   // Add the "no" branch node
@@ -81,6 +81,46 @@ export const INITIAL_WORKFLOW_STEPS = [
     contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     outgoingConnections: {
       default: { targetNodeId: null } // Can connect to another node if needed
+    }
+  },
+  // Add new splitflow node
+  {
+    id: "split-flow-node",
+    type: 'splitflow',
+    title: 'Split Flow',
+    subtitle: 'Execute multiple paths in parallel',
+    position: { x: window.innerWidth / 2 - 190, y: 675 },
+    height: DEFAULT_NODE_HEIGHT,
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
+    branchConnections: {
+      "path1": { targetNodeId: "path1-action-node" },
+      "path2": { targetNodeId: "path2-control-node" }
+    }
+  },
+  // Add path1 child node
+  {
+    id: "path1-action-node",
+    type: 'action',
+    title: 'Path 1 Action',
+    subtitle: 'First parallel process',
+    position: { x: window.innerWidth / 2 - 380, y: 900 },
+    height: DEFAULT_NODE_HEIGHT,
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
+    outgoingConnections: {
+      default: { targetNodeId: null }
+    }
+  },
+  // Add path2 child node
+  {
+    id: "path2-control-node",
+    type: 'control',
+    title: 'Path 2 Control',
+    subtitle: 'Second parallel process',
+    position: { x: window.innerWidth / 2, y: 900 },
+    height: DEFAULT_NODE_HEIGHT,
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
+    outgoingConnections: {
+      default: { targetNodeId: null }
     }
   }
 ];

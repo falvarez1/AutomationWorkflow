@@ -649,15 +649,27 @@ const AutomationWorkflow = () => {
         return null;
       }
     } else if (node.type === NODE_TYPES.SPLITFLOW) {
-      // Similar logic for splitflow branches
-      const branches = pluginRegistry.getNodeType('splitflow').getBranches(node);
+      // Get all branches for this split flow node
+      const branches = pluginRegistry.getNodeType('splitflow').getBranches(node.properties);
       const index = branches.findIndex(b => b.id === branchId);
       
-      if (branchId === 'other' || index === branches.length - 1) {
-        return { x: node.position.x + 65 + (DEFAULT_NODE_WIDTH / 2), y: startY + 40 };
-      } else {
-        return { x: node.position.x - 65 + (DEFAULT_NODE_WIDTH / 2), y: startY + 40 };
+      if (index === -1) {
+        return null; // Invalid branch ID
       }
+      
+      // Get the total number of branches to determine spacing
+      const totalBranches = branches.length;
+      
+      // Calculate spacing between branches
+      // For 2 branches: positions at -65 and +65 (similar to IfElse)
+      // For 3 branches: positions at -120, 0, and +120
+      const spacing = totalBranches === 2 ? 130 : 120;
+      
+      // Calculate position based on index and total branches
+      const startPosition = -(spacing * (totalBranches - 1)) / 2;
+      const xOffset = startPosition + (index * spacing);
+      
+      return { x: startX + xOffset, y: startY + 40 };
     }
     
     // Default return for other node types
