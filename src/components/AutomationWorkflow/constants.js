@@ -36,7 +36,7 @@ export const INITIAL_WORKFLOW_STEPS = [
     subtitle: 'Not onboarded',
     position: { x: window.innerWidth / 2, y: 25 },
     height: DEFAULT_NODE_HEIGHT,
-    contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     outgoingConnections: {
       default: { targetNodeId: "two-day-delay-node" }
     }
@@ -48,7 +48,7 @@ export const INITIAL_WORKFLOW_STEPS = [
     subtitle: '2 days',
     position: { x: window.innerWidth / 2, y: 200 },
     height: DEFAULT_NODE_HEIGHT,
-    contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     outgoingConnections: {
       default: { targetNodeId: "send-email-node" }
     }
@@ -60,7 +60,7 @@ export const INITIAL_WORKFLOW_STEPS = [
     subtitle: 'Just one more step to go',
     position: { x: window.innerWidth / 2, y: 350 },
     height: DEFAULT_NODE_HEIGHT,
-    contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     outgoingConnections: {
       default: { targetNodeId: "check-clicked-node" }
     }
@@ -72,7 +72,39 @@ export const INITIAL_WORKFLOW_STEPS = [
     subtitle: 'Email link was clicked',
     position: { x: window.innerWidth / 2, y: 525 },
     height: DEFAULT_NODE_HEIGHT,
-    contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
-    branchConnections: {}
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
+    branchConnections: {
+      // Add connections to "yes" and "no" branches
+      "yes": { targetNodeId: "yes-branch-node" },
+      "no": { targetNodeId: "no-branch-node" }
+    }
+  },
+  // Add the "yes" branch node
+  {
+    id: "yes-branch-node",
+    type: 'action',
+    title: 'Yes Branch Action',
+    subtitle: 'When email was clicked',
+    // Position to the left based on getBranchEndpoint function
+    position: { x: window.innerWidth / 2 - 150, y: 650 },
+    height: DEFAULT_NODE_HEIGHT,
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
+    outgoingConnections: {
+      default: { targetNodeId: null } // Can connect to another node if needed
+    }
+  },
+  // Add the "no" branch node
+  {
+    id: "no-branch-node",
+    type: 'action',
+    title: 'No Branch Action',
+    subtitle: 'When email was not clicked',
+    // Position to the right based on getBranchEndpoint function
+    position: { x: window.innerWidth / 2 + 150, y: 650 },
+    height: DEFAULT_NODE_HEIGHT,
+    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
+    outgoingConnections: {
+      default: { targetNodeId: null } // Can connect to another node if needed
+    }
   }
 ];
