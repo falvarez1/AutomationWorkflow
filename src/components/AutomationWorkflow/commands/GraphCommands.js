@@ -18,43 +18,53 @@ class AddNodeCommand {
   }
   
   /**
-   * Find all nodes that are connected to a source node
-   * Includes both upstream and downstream nodes
-   * @param {string} startNodeId - The node ID to start from
-   * @returns {Set} Set of node IDs that are connected to the start node
+   * Find nodes that are in the same branch path as the new node
+   * Excludes sibling branches (other branches from the same parent)
+   * @param {string} startNodeId - The source node ID
+   * @param {string} branchId - The branch ID being added to
+   * @returns {Set} Set of node IDs that should be considered for movement
    */
-  findConnectedNodes(startNodeId) {
-    const visited = new Set();
-    const toVisit = [startNodeId];
+  findNodesInBranchPath(startNodeId, branchId) {
+    const nodesInPath = new Set();
     
-    console.log("Finding connected nodes starting from:", startNodeId);
+    // If we're adding to a branch, first get the existing target node (if any)
+    let targetNodeId = null;
     
-    // Use BFS to find all connected nodes (upstream and downstream)
-    while (toVisit.length > 0) {
-      const currentId = toVisit.shift();
+    if (this.connectionType === 'branch' && branchId) {
+      const existingBranchEdges = this.graph.getBranchOutgoingEdges(startNodeId);
+      const existingBranchEdge = existingBranchEdges.find(edge => edge.label === branchId);
       
-      if (visited.has(currentId)) continue;
-      visited.add(currentId);
-      
-      // Check outgoing connections
-      const outgoingEdges = this.graph.getOutgoingEdges(currentId);
-      for (const edge of outgoingEdges) {
-        if (!visited.has(edge.targetId)) {
-          toVisit.push(edge.targetId);
-        }
+      if (existingBranchEdge) {
+        targetNodeId = existingBranchEdge.targetId;
       }
+    } else if (this.connectionType === 'default') {
+      const existingDefaultEdge = this.graph.getDefaultOutgoingEdge(startNodeId);
+      if (existingDefaultEdge) {
+        targetNodeId = existingDefaultEdge.targetId;
+      }
+    }
+    
+    // If we found a target node, add it and all its descendants
+    if (targetNodeId) {
+      // Use DFS to find all descendants
+      const toVisit = [targetNodeId];
       
-      // Check incoming connections
-      const incomingEdges = this.graph.getIncomingEdges(currentId);
-      for (const edge of incomingEdges) {
-        if (!visited.has(edge.sourceId)) {
-          toVisit.push(edge.sourceId);
+      while (toVisit.length > 0) {
+        const currentId = toVisit.pop();
+        
+        if (nodesInPath.has(currentId)) continue;
+        nodesInPath.add(currentId);
+        
+        // Add all outgoing connections to the visit queue
+        const outgoingEdges = this.graph.getOutgoingEdges(currentId);
+        for (const edge of outgoingEdges) {
+          toVisit.push(edge.targetId);
         }
       }
     }
     
-    console.log("Connected nodes:", Array.from(visited));
-    return visited;
+    console.log("Nodes in branch path:", Array.from(nodesInPath));
+    return nodesInPath;
   }
 
   execute() {
@@ -62,40 +72,33 @@ class AddNodeCommand {
     const allNodes = this.graph.getAllNodes();
     const newNodeY = this.newNode.position.y;
     
-    // Save the current state for finding nodes later if we add a node above
-    // this one in future operations
+    // Save the current state for finding nodes later
     this.insertionY = newNodeY;
     
-    // Find all nodes that are below or exactly at the new node's Y position
-    // except for the source node and our new node
     console.log("AddNodeCommand: Finding nodes to move down");
     console.log("New node position:", this.newNode.position);
     console.log("Source node ID:", this.sourceNodeId);
     
-    // If we have a source node, we only want to move nodes that are part of
-    // the same connected component (flow/tree)
-    let connectedNodeIds = new Set();
+    // Nodes that should be considered for movement (excluding sibling branches)
+    let nodesInPath = new Set();
     
     if (this.sourceNodeId) {
-      // Find all nodes connected to the source node (part of the same flow/tree)
-      connectedNodeIds = this.findConnectedNodes(this.sourceNodeId);
+      // Find nodes that are in the same branch path
+      nodesInPath = this.findNodesInBranchPath(this.sourceNodeId, this.branchId);
       
-      // Also add the new node ID to the set since it will be connected
-      connectedNodeIds.add(this.addedNodeId);
-      console.log("Connected node IDs:", Array.from(connectedNodeIds));
+      // Also add the new node ID to the set
+      nodesInPath.add(this.addedNodeId);
     }
     
     allNodes.forEach(node => {
       // Only move nodes that:
       // 1. Are at or below the new node's Y position
       // 2. Are not the source node itself
-      // 3. Are part of the same connected component (if there's a source node)
-      const isConnected = this.sourceNodeId ? connectedNodeIds.has(node.id) : false;
+      // 3. Are in the same branch path (or all nodes if no source node)
+      const isInPath = this.sourceNodeId ? nodesInPath.has(node.id) : true;
       const shouldMove = node.position.y >= newNodeY &&
                         node.id !== this.sourceNodeId &&
-                        (isConnected || !this.sourceNodeId);
-      
-      console.log("Node", node.id, "- Y:", node.position.y, "Connected:", isConnected, "Should move:", shouldMove);
+                        isInPath;
       
       if (shouldMove) {
         // Save original position for undo
@@ -171,10 +174,11 @@ class AddNodeCommand {
         }
       }
     }
+    
     // Add the node to the graph
     this.graph.addNode(this.newNode);
     
-    // Move all nodes from the same flow/tree below the insertion point down
+    // Move all identified nodes down
     if (this.movedNodes.length > 0) {
       console.log("Moving nodes down by", this.nodeVerticalSpacing, "pixels");
       this.movedNodes.forEach(movedNode => {
@@ -187,7 +191,6 @@ class AddNodeCommand {
               y: movedNode.oldY + this.nodeVerticalSpacing
             }
           });
-          console.log("Moved node", movedNode.id, "from y:", movedNode.oldY, "to y:", movedNode.oldY + this.nodeVerticalSpacing);
         }
       });
     }
