@@ -260,33 +260,31 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
   // Add a ref to track if we just clicked a node
   const justClickedNodeRef = useRef(false);
   
+  // Add these refs to track drag vs click behavior
+  const mouseDownPosRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  
   // Modified handle canvas mouse down to respect just-clicked nodes
   const handleCanvasMouseDown = (e) => {
     // Check if the click was on the canvas background
     const isClickingNode = e.target.closest('[data-node-element="true"]');
     
-    // Check if any node was just clicked to prevent deselection
-    const wasJustClicked = isClickingNode && 
-      isClickingNode.getAttribute('data-was-just-clicked') === 'true';
-    
-    // Only consider it a canvas click if we're clicking directly on the canvas element
-    // and not on a node element
+    // Only start panning if clicking on the canvas (not on a node)
     if (e.button === 0 && !isClickingNode) {
       // This is a direct click on the canvas background
       setIsPanning(true);
       setStartPanPos({ x: e.clientX - transform.x, y: e.clientY - transform.y });
       
-      // Deselect nodes only on direct canvas background clicks
-      // and if we didn't just click a node
-      if (!justClickedNodeRef.current) {
-        setSelectedNodeId(null);
-      }
+      // Save the initial mouse position to determine if this becomes a drag or a click
+      mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+      isDraggingRef.current = false;
       
       e.preventDefault();
     }
     
     // Reset the just clicked ref
-    justClickedNodeRef.current = wasJustClicked;
+    justClickedNodeRef.current = isClickingNode && 
+      isClickingNode.getAttribute('data-was-just-clicked') === 'true';
   };
   
   // Handle canvas mouse move for panning with improved smoothness
@@ -294,6 +292,17 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
     if (!isPanning) return;
     
     const handleMouseMove = (e) => {
+      // Check if we've moved enough to consider this a drag
+      if (mouseDownPosRef.current) {
+        const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
+        const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+        
+        // If moved more than 5px, consider it a drag
+        if (dx > 5 || dy > 5) {
+          isDraggingRef.current = true;
+        }
+      }
+      
       requestAnimationFrame(() => {
         setTransform(prev => ({
           ...prev,
@@ -303,8 +312,17 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
       });
     };
     
-    const handleMouseUp = () => {
+    const handleMouseUp = (e) => {
       setIsPanning(false);
+      
+      // Only deselect node if this was a clean click (not a drag)
+      // and we're not clicking on a node
+      if (!isDraggingRef.current && !justClickedNodeRef.current) {
+        setSelectedNodeId(null);
+      }
+      
+      // Reset tracking refs
+      mouseDownPosRef.current = null;
     };
     
     document.addEventListener('mousemove', handleMouseMove);

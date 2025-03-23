@@ -103,10 +103,9 @@ export const PropertyRenderer = ({
   };
   
   const handlePropertyValueChange = useCallback((propId, newValue) => {
-    if (node[propId] !== newValue) {
-      onChange(propId, newValue);
-    }
-  }, [node, onChange]);
+    // Always call onChange to update pending changes
+    onChange(propId, newValue);
+  }, [onChange]);
   
   // Render property groups
   const renderGroups = () => {
