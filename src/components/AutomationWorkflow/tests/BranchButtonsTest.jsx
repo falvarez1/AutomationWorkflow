@@ -11,7 +11,7 @@ const BranchButtonsTest = () => {
     {
       id: 'if-else-node',
       type: 'ifelse',
-      position: { x: 250, y: 200 },
+      position: { x: 950, y: 100 },
       title: 'If/Else Branch Node',
       subtitle: 'Demonstrates True/False path buttons',
       properties: {
@@ -23,7 +23,7 @@ const BranchButtonsTest = () => {
     {
       id: 'split-flow-node',
       type: 'splitflow',
-      position: { x: 550, y: 200 },
+      position: { x: 550, y: 300 },
       title: 'Split Flow Node',
       subtitle: 'Demonstrates branch-specific buttons',
       properties: {

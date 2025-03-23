@@ -16,6 +16,46 @@ class AddNodeCommand {
     this.nodeVerticalSpacing = 150; // Vertical spacing between nodes
     this.movedNodes = []; // Track nodes that were moved down
   }
+  
+  /**
+   * Find all nodes that are connected to a source node
+   * Includes both upstream and downstream nodes
+   * @param {string} startNodeId - The node ID to start from
+   * @returns {Set} Set of node IDs that are connected to the start node
+   */
+  findConnectedNodes(startNodeId) {
+    const visited = new Set();
+    const toVisit = [startNodeId];
+    
+    console.log("Finding connected nodes starting from:", startNodeId);
+    
+    // Use BFS to find all connected nodes (upstream and downstream)
+    while (toVisit.length > 0) {
+      const currentId = toVisit.shift();
+      
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+      
+      // Check outgoing connections
+      const outgoingEdges = this.graph.getOutgoingEdges(currentId);
+      for (const edge of outgoingEdges) {
+        if (!visited.has(edge.targetId)) {
+          toVisit.push(edge.targetId);
+        }
+      }
+      
+      // Check incoming connections
+      const incomingEdges = this.graph.getIncomingEdges(currentId);
+      for (const edge of incomingEdges) {
+        if (!visited.has(edge.sourceId)) {
+          toVisit.push(edge.sourceId);
+        }
+      }
+    }
+    
+    console.log("Connected nodes:", Array.from(visited));
+    return visited;
+  }
 
   execute() {
     // We need to identify nodes below the insertion point *before* adding the node
@@ -28,10 +68,36 @@ class AddNodeCommand {
     
     // Find all nodes that are below or exactly at the new node's Y position
     // except for the source node and our new node
+    console.log("AddNodeCommand: Finding nodes to move down");
+    console.log("New node position:", this.newNode.position);
+    console.log("Source node ID:", this.sourceNodeId);
+    
+    // If we have a source node, we only want to move nodes that are part of
+    // the same connected component (flow/tree)
+    let connectedNodeIds = new Set();
+    
+    if (this.sourceNodeId) {
+      // Find all nodes connected to the source node (part of the same flow/tree)
+      connectedNodeIds = this.findConnectedNodes(this.sourceNodeId);
+      
+      // Also add the new node ID to the set since it will be connected
+      connectedNodeIds.add(this.addedNodeId);
+      console.log("Connected node IDs:", Array.from(connectedNodeIds));
+    }
+    
     allNodes.forEach(node => {
-      // Only exclude the source node - we want to move any existing node at this position
-      // and any node below this position that isn't the source
-      if (node.position.y >= newNodeY && node.id !== this.sourceNodeId) {
+      // Only move nodes that:
+      // 1. Are at or below the new node's Y position
+      // 2. Are not the source node itself
+      // 3. Are part of the same connected component (if there's a source node)
+      const isConnected = this.sourceNodeId ? connectedNodeIds.has(node.id) : false;
+      const shouldMove = node.position.y >= newNodeY &&
+                        node.id !== this.sourceNodeId &&
+                        (isConnected || !this.sourceNodeId);
+      
+      console.log("Node", node.id, "- Y:", node.position.y, "Connected:", isConnected, "Should move:", shouldMove);
+      
+      if (shouldMove) {
         // Save original position for undo
         this.movedNodes.push({
           id: node.id,
@@ -39,6 +105,8 @@ class AddNodeCommand {
         });
       }
     });
+    
+    console.log("Nodes to be moved:", this.movedNodes);
 
     // If there's a source node, create the connection
     if (this.sourceNodeId) {
@@ -106,8 +174,9 @@ class AddNodeCommand {
     // Add the node to the graph
     this.graph.addNode(this.newNode);
     
-    // Move all nodes below the insertion point down
+    // Move all nodes from the same flow/tree below the insertion point down
     if (this.movedNodes.length > 0) {
+      console.log("Moving nodes down by", this.nodeVerticalSpacing, "pixels");
       this.movedNodes.forEach(movedNode => {
         const node = this.graph.getNode(movedNode.id);
         if (node) {
@@ -118,6 +187,7 @@ class AddNodeCommand {
               y: movedNode.oldY + this.nodeVerticalSpacing
             }
           });
+          console.log("Moved node", movedNode.id, "from y:", movedNode.oldY, "to y:", movedNode.oldY + this.nodeVerticalSpacing);
         }
       });
     }

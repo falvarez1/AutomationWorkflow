@@ -48,10 +48,14 @@ export class AddNodeCommand extends NodeCommand {
   execute() {
     // Add node and update positions
     this._updateWorkflow(currentSteps => {
+      // Find nodes in the same flow
+      const nodesInSameFlow = this._getNodesInSameFlow(currentSteps);
+      
       // Store the nodes we're moving for undo if we haven't already
       if (this.movedNodes.length === 0) {
         this.movedNodes = currentSteps
           .slice(this.insertIndex)
+          .filter(step => nodesInSameFlow.has(step.id)) // Only move nodes in the same flow
           .map(step => ({
             id: step.id,
             oldY: step.position.y
@@ -64,16 +68,20 @@ export class AddNodeCommand extends NodeCommand {
       // Add the new node at the specified index
       updatedSteps.splice(this.insertIndex, 0, this.newNode);
 
-      // Move all nodes below the insertion point down
+      // Move all nodes below the insertion point down, but only if they're in the same flow
       for (let i = this.insertIndex + 1; i < updatedSteps.length; i++) {
         const step = updatedSteps[i];
-        updatedSteps[i] = {
-          ...step,
-          position: {
-            ...step.position,
-            y: step.position.y + this.nodeVerticalSpacing
-          }
-        };
+        
+        // Only move nodes that are in the same flow
+        if (nodesInSameFlow.has(step.id)) {
+          updatedSteps[i] = {
+            ...step,
+            position: {
+              ...step.position,
+              y: step.position.y + this.nodeVerticalSpacing
+            }
+          };
+        }
       }
 
       // Update connections if needed
@@ -190,5 +198,65 @@ export class AddNodeCommand extends NodeCommand {
         prev.filter(id => id !== this.nodeId)
       );
     }, 300);
+  }
+
+  /**
+   * Get nodes that are part of the same flow
+   * @param {Array} steps - Current workflow steps
+   * @returns {Set} Set of node IDs in the same flow
+   * @private
+   */
+  _getNodesInSameFlow(steps) {
+    const nodesInFlow = new Set();
+    
+    // If we're connecting to an existing node, use that to determine the flow
+    if (this.connectionsToUpdate.sourceNodeIndex !== undefined) {
+      const sourceNode = steps[this.connectionsToUpdate.sourceNodeIndex];
+      if (sourceNode) {
+        this._findConnectedNodes(steps, sourceNode.id, nodesInFlow);
+      }
+    }
+    
+    // Always include the new node in the flow
+    nodesInFlow.add(this.newNode.id);
+    
+    return nodesInFlow;
+  }
+  
+  /**
+   * Recursively find all nodes connected to the specified node
+   * @param {Array} steps - Workflow steps
+   * @param {string} nodeId - Current node ID
+   * @param {Set} visitedNodes - Set of visited node IDs
+   * @private
+   */
+  _findConnectedNodes(steps, nodeId, visitedNodes) {
+    if (visitedNodes.has(nodeId)) return;
+    
+    visitedNodes.add(nodeId);
+    
+    // Find current node
+    const node = steps.find(step => step.id === nodeId);
+    if (!node) return;
+    
+    // Check outgoing connections
+    if (node.branchConnections) {
+      Object.values(node.branchConnections).forEach(conn => {
+        if (conn.targetNodeId) {
+          this._findConnectedNodes(steps, conn.targetNodeId, visitedNodes);
+        }
+      });
+    }
+    
+    // Check incoming connections
+    steps.forEach(step => {
+      if (step.branchConnections) {
+        Object.values(step.branchConnections).forEach(conn => {
+          if (conn.targetNodeId === nodeId) {
+            this._findConnectedNodes(steps, step.id, visitedNodes);
+          }
+        });
+      }
+    });
   }
 }
