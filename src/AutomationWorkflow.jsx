@@ -468,8 +468,7 @@ const NodeContextMenu = ({ position, nodeType, visible, onAction, menuPosition =
 
 // Connector Line Component with Bezier Curves for smoother connections
 const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }) => {
-  // Static node dimensions
-  const nodeWidth = 300;
+  // Static node dimensions (we're already using a constant NODE_WIDTH)
 
   // Use the positions as passed in - they're already positioned correctly
   // The startPos is the center bottom of the source node
@@ -488,9 +487,14 @@ const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }
   const ctrl2X = endX;
   const ctrl2Y = endY - curveStrength;
 
-  // Calculate midpoint for label placement
-  const midX = (startX + endX) / 2;
-  const midY = (startY + endY) / 2;
+  // Calculate label placement - position it closer to the source node for branches
+  // This moves it to 1/4 of the way along the connection instead of the midpoint
+  const labelPosition = label ? 0.3 : 0.5; // Closer to source if it has a label
+  const midX = startX + (endX - startX) * labelPosition;
+  const midY = startY + (endY - startY) * labelPosition;
+  
+  // For branch labels, position them higher up to avoid button overlap
+  const labelOffsetY = label ? -15 : 0;
 
   const pathStyle = {
     stroke: isHighlighted ? '#3B82F6' : '#D1D5DB',
@@ -506,7 +510,7 @@ const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }
         style={pathStyle}
       />
       {label && (
-        <g transform={`translate(${midX}, ${midY})`}>
+        <g transform={`translate(${midX}, ${midY + labelOffsetY})`}>
           <rect
             x="-30"
             y="-12"
@@ -535,7 +539,7 @@ const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }
 };
 
 // Add Node Button Component with integrated menu
-const AddNodeButton = ({ position, nodeWidth, buttonSize, onAdd, isHighlighted = false, onMouseEnter, onMouseLeave, showMenu = false, onAddNodeType }) => {
+const AddNodeButton = ({ position, nodeWidth, buttonSize, onAdd, isHighlighted = false, onMouseEnter, onMouseLeave, showMenu = false, sourceNodeId = 'none', sourceType = 'standard' }) => {
   const [isHovered, setIsHovered] = useState(false);
   const buttonRef = useRef(null); // Add ref to get button position for menu
   
@@ -560,6 +564,8 @@ const AddNodeButton = ({ position, nodeWidth, buttonSize, onAdd, isHighlighted =
         zIndex: 5, // Between lines (0) and nodes (10+)
       }}
       data-node-element="true"
+      data-source-node-id={sourceNodeId}
+      data-button-type={sourceType}
       className="add-node-button"
     >
       <button
@@ -591,6 +597,80 @@ const AddNodeButton = ({ position, nodeWidth, buttonSize, onAdd, isHighlighted =
   );
 };
 
+// Add a new component for branch endpoint buttons that appears integrated with connector lines
+const BranchEndpointButton = ({ position, buttonSize, onAdd, isHighlighted = false, onMouseEnter, onMouseLeave, showMenu = false, sourceNodeId = 'none', branchId = 'none' }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    onMouseEnter?.();
+  };
+  
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    onMouseLeave?.();
+  };
+  
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: position.x - (buttonSize / 2) + 'px', // Center on the endpoint
+        top: position.y - (buttonSize / 2) + 'px',  // Center on the endpoint
+        zIndex: 6, // Higher than regular add buttons
+      }}
+      data-node-element="true"
+      data-source-node-id={sourceNodeId}
+      data-branch-id={branchId}
+      data-button-type="branch-endpoint"
+      className="branch-endpoint-button"
+    >
+      {/* Connector visual to make button appear integrated with the line */}
+      <div 
+        className="connector-dot"
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          width: '14px',
+          height: '14px',
+          borderRadius: '50%',
+          background: isHovered || isHighlighted ? '#3B82F6' : '#D1D5DB',
+          transform: 'translate(-50%, -50%)',
+          transition: 'background-color 0.2s',
+          zIndex: 1
+        }}
+      />
+      
+      <button
+        style={{
+          position: 'relative',
+          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s',
+          zIndex: 2
+        }}
+        onClick={(e) => {
+          onAdd(e);
+          e.stopPropagation();
+        }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`flex items-center justify-center w-10 h-10 rounded-full
+          ${isHovered || isHighlighted ? 'bg-blue-600 shadow-lg transform scale-110' : 'bg-blue-500 shadow'}
+          text-white focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2`}
+      >
+        <Plus className="w-6 h-6" />
+        
+        {/* Show tooltip on hover (only if menu is not shown) */}
+        {isHovered && !showMenu && (
+          <div className="absolute top-full mt-2 bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50">
+            Add branch node
+          </div>
+        )}
+      </button>
+    </div>
+  );
+};
+
 // Main Automation Workflow Component
 const AutomationWorkflow = () => {
   // Define constants at the component level
@@ -604,41 +684,52 @@ const AutomationWorkflow = () => {
   const [canRedo, setCanRedo] = useState(false);
   const [workflowSteps, setWorkflowSteps] = useState([
     {
-      id: 1,
+      id: "customer-joins-node",
       type: 'trigger',
       title: 'Customer joins Segment',
       subtitle: 'Not onboarded',
       position: { x: window.innerWidth / 2, y: 25 },
       height: 90,
-      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 }
+      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
+      outgoingConnections: {
+        default: { targetNodeId: "two-day-delay-node" }
+      }
     },
     {
-      id: 2,
+      id: "two-day-delay-node",
       type: 'control',
       title: 'Delay',
       subtitle: '2 days',
       position: { x: window.innerWidth / 2, y: 200 },
       height: 90,
-      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 }
+      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
+      outgoingConnections: {
+        default: { targetNodeId: "send-email-node" }
+      }
     },
     {
-      id: 3,
+      id: "send-email-node",
       type: 'action',
       title: 'Send email',
       subtitle: 'Just one more step to go',
       position: { x: window.innerWidth / 2, y: 350 },
       height: 90,
-      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 }
+      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
+      outgoingConnections: {
+        default: { targetNodeId: "check-clicked-node" }
+      }
     },
     {
-      id: 4,
+      id: "check-clicked-node",
       type: 'ifelse',
       title: 'Check if clicked',
       subtitle: 'Email link was clicked',
       position: { x: window.innerWidth / 2, y: 525 },
       height: 90,
       contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
-      branchConnections: {} // Initialize empty branch connections
+      branchConnections: {
+        // Empty initially - will be filled when branch nodes are added
+      }
     }
   ]);
   
@@ -653,7 +744,7 @@ const AutomationWorkflow = () => {
   // Add state for tracking which branch button is active (nodeIndex and branchId)
   const [activeBranchButton, setActiveBranchButton] = useState(null);
   const [snapToGrid, setSnapToGrid] = useState(true);
-  const [highlightedConnection] = useState(null);
+  const [highlightedConnection, setHighlightedConnection] = useState(null);
   // Add state to track original position when dragging
   const [dragStartPosition, setDragStartPosition] = useState(null);
   
@@ -925,159 +1016,111 @@ const AutomationWorkflow = () => {
   // State to track animating nodes
   const [animatingNodes, setAnimatingNodes] = useState([]);
   
-  // Handle adding a new step
-  const handleAddStep = useCallback((index, nodeType) => {
-    // Calculate position for new node - below the current one
-    const prevNode = workflowSteps[index];
-    const newPos = {
-      x: prevNode.position.x,
-      y: prevNode.position.y + 175
+  // Helper functions
+  const generateUniqueId = () => `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const createNewNode = (nodeType, position, overrides = {}) => {
+    // Get any initial properties from the node plugin
+    const nodePlugin = pluginRegistry.getNodeType(nodeType);
+    const initialProps = nodePlugin.getInitialProperties ? nodePlugin.getInitialProperties() : {};
+    return {
+      id: generateUniqueId(),
+      type: nodeType,
+      position,
+      height: DEFAULT_NODE_HEIGHT,
+      isNew: true,
+      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
+      branchConnections: nodePlugin.hasMultipleBranches() ? {} : undefined,
+      outgoingConnections: {}, // Add empty outgoing connections property
+      ...initialProps,
+      ...overrides
     };
-    
-    // First phase: Push down all nodes below this one
-    const nodesToAnimate = [];
-    const updatedSteps = workflowSteps.map(step => {
-      if (step.position.y > prevNode.position.y) {
-        nodesToAnimate.push(step.id);
-        return {
-          ...step,
-          position: { ...step.position, y: step.position.y + 175 }
-        };
-      }
-      return step;
-    });
-    
-    // Track which nodes are animating
-    setAnimatingNodes(nodesToAnimate);
-    
-    // Create the new node based on type
-    let newStep;
-    
-    // Default context menu config for new nodes
-    const defaultContextMenuConfig = {
-      position: 'right',
-      offsetX: 10,
-      offsetY: 0
-    };
-    
+  };
+
+  // Helper functions for default node properties
+  const getDefaultTitle = (nodeType) => {
     switch (nodeType) {
       case 'trigger':
-        newStep = {
-          id: Date.now(),
-          type: 'trigger',
-          title: 'New Trigger',
-          subtitle: 'Configure this trigger',
-          position: newPos,
-          isNew: true, // Flag to indicate this is a new node for animation
-          contextMenuConfig: defaultContextMenuConfig
-        };
-        break;
-      case 'action':
-        newStep = {
-          id: Date.now(),
-          type: 'action',
-          title: 'Send email',
-          subtitle: 'Configure this email',
-          position: newPos,
-          isNew: true, // Flag to indicate this is a new node for animation
-          contextMenuConfig: defaultContextMenuConfig
-        };
-        break;
-      case 'ifelse':
-        newStep = {
-          id: Date.now(),
-          type: 'ifelse',
-          title: 'If/else',
-          subtitle: 'Clicked link is not Something...',
-          position: newPos,
-          isNew: true, // Flag to indicate this is a new node for animation
-          contextMenuConfig: defaultContextMenuConfig,
-          branchConnections: {} // Add branch connections property for ifelse nodes
-        };
-        break;
-      case 'splitflow':
-        newStep = {
-          id: Date.now(),
-          type: 'splitflow',
-          title: 'Split flow',
-          subtitle: 'Split based on First name',
-          position: newPos,
-          isNew: true, // Flag to indicate this is a new node for animation
-          contextMenuConfig: defaultContextMenuConfig,
-          branchConnections: {} // Add branch connections property for splitflow nodes
-        };
-        break;
+        return 'New Trigger';
       case 'control':
+        return 'New Control';
+      case 'action':
+        return 'New Action';
+      case 'ifelse':
+        return 'New If/Else';
+      case 'splitflow':
+        return 'New Split Flow';
       default:
-        newStep = {
-          id: Date.now(),
-          type: 'control',
-          title: 'Delay',
-          subtitle: '3 days',
-          position: newPos,
-          isNew: true, // Flag to indicate this is a new node for animation
-          contextMenuConfig: defaultContextMenuConfig
-        };
+        return 'New Step';
+    }
+  };
+
+  const getDefaultSubtitle = (nodeType) => {
+    switch (nodeType) {
+      case 'trigger':
+        return 'Configure this trigger';
+      case 'control':
+        return 'Configure this control';
+      case 'action':
+        return 'Configure this action';
+      case 'ifelse':
+        return 'Configure condition';
+      case 'splitflow':
+        return 'Configure split conditions';
+      default:
+        return 'Configure properties';
+    }
+  };
+
+  // Handle adding a new step
+  const handleAddStep = useCallback((index, nodeType) => {
+    const sourceNode = workflowSteps[index];
+    
+    // Calculate position for new node
+    const newPos = {
+      x: sourceNode.position.x,
+      y: sourceNode.position.y + 175
+    };
+    
+    // Create new node
+    const newNodeId = generateUniqueId();
+    const newNode = createNewNode(nodeType, newPos, {
+      id: newNodeId,
+      title: getDefaultTitle(nodeType),
+      subtitle: getDefaultSubtitle(nodeType)
+    });
+    
+    // Find any current target nodes of the source node
+    let targetNodeId = null;
+    if (sourceNode.outgoingConnections?.default?.targetNodeId) {
+      targetNodeId = sourceNode.outgoingConnections.default.targetNodeId;
     }
     
-    // Connection updates for branching nodes
-    let connectionsToUpdate = {};
+    // Set up the source node's outgoing connection to point to the new node
+    const updatedSourceNode = {
+      ...sourceNode,
+      outgoingConnections: {
+        ...sourceNode.outgoingConnections,
+        default: { targetNodeId: newNodeId }
+      }
+    };
     
-    // If inserting a branching node (ifelse or splitflow) between two nodes
-    if ((nodeType === 'ifelse' || nodeType === 'splitflow') && index < workflowSteps.length - 1) {
-      // Get the node that would be below the new node
-      const targetNode = workflowSteps[index + 1];
-      
-      // Determine the leftmost branch ID
-      const leftBranchId = nodeType === 'ifelse' ? 'yes' : 'branch_0';
-      
-      // Set up the branch connection to point to the target node
-      newStep.branchConnections = {
-        [leftBranchId]: { targetNodeId: targetNode.id }
-      };
-      
-      // Calculate the position for the target node
-      const leftBranchEndpoint = getBranchEndpoint(newStep, leftBranchId);
-      const newTargetPosition = {
-        x: leftBranchEndpoint.x - (NODE_WIDTH / 2), // Center under endpoint
-        y: leftBranchEndpoint.y + 50 // Position below endpoint
-      };
-      
-      // Store connection information for the command
-      connectionsToUpdate = {
-        targetNodeIndex: index + 2, // After the new node is inserted
-        newPosition: newTargetPosition
-      };
+    // Set up the new node's outgoing connection to point to any previous target
+    if (targetNodeId) {
+      newNode.outgoingConnections.default = { targetNodeId };
     }
-    // Create and execute AddNodeCommand
-    const addCommand = new AddNodeCommand(
-      setWorkflowSteps,
-      setSelectedNodeIndex,
-      setAnimatingNodes,
-      newStep,
-      index + 1, // Insert after the current node
-      connectionsToUpdate,
-      updatedSteps // Pre-updated steps (with pushed down nodes)
+    
+    // Update the workflow steps
+    const updatedSteps = workflowSteps.map(step => 
+      step.id === sourceNode.id ? updatedSourceNode : step
     );
     
-    // Execute the command
-    commandManager.executeCommand(addCommand);
+    setWorkflowSteps([...updatedSteps, newNode]);
     
-    // Close the menu
-    setActiveAddButtonIndex(null);
-    
-    // After animation completes, remove the animation flags
-    setTimeout(() => {
-      setAnimatingNodes([]);
-      setWorkflowSteps(current =>
-        current.map(step => ({
-          ...step,
-          isNew: false
-        }))
-      );
-    }, 400); // Slightly longer than the CSS transition duration
-  }, [workflowSteps, getBranchEndpoint, NODE_WIDTH, setAnimatingNodes, setWorkflowSteps, setActiveAddButtonIndex, setSelectedNodeIndex]);
-  
+    // ...rest of add node logic...
+  }, [workflowSteps, createNewNode, getDefaultTitle, getDefaultSubtitle]);
+
+
   // Initialize command manager and listen for changes
   useEffect(() => {
     // Setup command manager listener to update undo/redo state
@@ -1274,77 +1317,45 @@ const AutomationWorkflow = () => {
     const sourceNode = workflowSteps[nodeIndex];
     if (!sourceNode) return;
     
-    // Get node plugin for the type
-    const nodePlugin = pluginRegistry.getNodeType(nodeType);
-    if (!nodePlugin) return;
-    
-    // Get initial properties
-    const initialProps = nodePlugin.getInitialProperties();
-    
     // Get endpoint position for branch
     const endpoint = getBranchEndpoint(sourceNode, branchId);
     
     // Create new node with a unique ID
-    const newNodeId = Date.now();
-    const newNode = {
-      id: newNodeId,
-      type: nodeType,
-      ...initialProps,
-      position: {
-        x: endpoint.x - (NODE_WIDTH / 2), // Center under the endpoint
-        y: endpoint.y + 50 // Position below endpoint
-      },
-      height: DEFAULT_NODE_HEIGHT,
-      isNew: true,
-      contextMenuConfig: {
-        position: 'right',
-        offsetX: 10,
-        offsetY: 0
-      },
-      // Initialize branchConnections if this is a branching node
-      branchConnections: nodePlugin.hasMultipleBranches() ? {} : undefined
-    };
-    
-    // Connection information for the command
-    const connectionsToUpdate = {
-      sourceNodeIndex: nodeIndex,
-      branchId: branchId,
-      targetNodeId: newNodeId
-    };
-    
-    // Create a copy of workflow steps for the command
-    const updatedSteps = [...workflowSteps];
-    
-    // Create and execute AddNodeCommand
-    const addCommand = new AddNodeCommand(
-      setWorkflowSteps,
-      setSelectedNodeIndex,
-      setAnimatingNodes,
-      newNode,
-      nodeIndex + 1, // Insert after the source node
-      connectionsToUpdate,
-      updatedSteps
+    const newNodeId = generateUniqueId();
+    const newNode = createNewNode(
+      nodeType,
+      { x: endpoint.x - (NODE_WIDTH / 2), y: endpoint.y + 50 },
+      { id: newNodeId }
     );
     
-    // Execute the command
-    commandManager.executeCommand(addCommand);
+    // Update the source node's branch connections
+    const updatedSourceNode = {
+      ...sourceNode,
+      branchConnections: {
+        ...sourceNode.branchConnections,
+        [branchId]: { targetNodeId: newNodeId }
+      }
+    };
+    
+    // Update the workflow steps
+    const updatedSteps = workflowSteps.map(step => 
+      step.id === sourceNode.id ? updatedSourceNode : step
+    );
+    
+    setWorkflowSteps([...updatedSteps, newNode]);
     
     // Reset branch button
     setActiveBranchButton(null);
     
-    // Auto-select the new node after a delay (this happens in the command now)
+    // Auto-select the new node after a delay
     setTimeout(() => {
-      setAnimatingNodes(prev => prev.filter(id => id !== newNodeId));
+      setAnimatingNodes(prev => prev.filter(id => id !== newNode.id));
     }, 300);
   }, [
     workflowSteps,
-    setWorkflowSteps,
     getBranchEndpoint,
-    setActiveBranchButton,
-    setAnimatingNodes,
-    setSelectedNodeIndex,
     NODE_WIDTH,
-    DEFAULT_NODE_HEIGHT
+    createNewNode
   ]);
 
   // Handle showing the add node menu (now using dedicated state)
@@ -1366,6 +1377,7 @@ const AutomationWorkflow = () => {
     }
     e.stopPropagation();
   };
+  
   // Portal for rendering the add step menu outside the transform container
   const renderMenuPortal = useCallback(() => {
     // Handle regular add node menu
@@ -1557,6 +1569,194 @@ const AutomationWorkflow = () => {
     getBranchEndpoint
   ]);
   
+  // Update the rendering of connector lines to use the tree structure
+  const renderConnections = () => {
+    return (
+      <g>
+        {/* Render standard connections */}
+        {workflowSteps.map(sourceNode => {
+          // Skip nodes without connections
+          if (!sourceNode.outgoingConnections?.default?.targetNodeId) return null;
+          
+          // Find the target node
+          const targetNodeId = sourceNode.outgoingConnections.default.targetNodeId;
+          const targetNode = workflowSteps.find(n => n.id === targetNodeId);
+          if (!targetNode) return null;
+          
+          return (
+            <ConnectorLine
+              key={`connector-${sourceNode.id}-${targetNodeId}`}
+              startPos={{
+                x: sourceNode.position.x + (NODE_WIDTH / 2),
+                y: sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + edgeOutputYOffset
+              }}
+              endPos={{
+                x: targetNode.position.x + (NODE_WIDTH / 2),
+                y: targetNode.position.y + edgeInputYOffset
+              }}
+              isHighlighted={selectedNodeIndex === workflowSteps.indexOf(sourceNode) || 
+                            selectedNodeIndex === workflowSteps.indexOf(targetNode)}
+            />
+          );
+        })}
+        
+        {/* Render branch connections */}
+        {workflowSteps.map(sourceNode => {
+          if (!sourceNode.branchConnections) return null;
+          
+          const nodePlugin = pluginRegistry.getNodeType(sourceNode.type);
+          if (!nodePlugin || !nodePlugin.hasMultipleBranches(sourceNode)) return null;
+          
+          const branches = nodePlugin.getBranches(sourceNode);
+          if (!branches || branches.length < 2) return null;
+          
+          const startX = sourceNode.position.x + (NODE_WIDTH / 2);
+          const startY = sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + edgeOutputYOffset;
+          
+          return (
+            <React.Fragment key={`branches-${sourceNode.id}`}>
+              {branches.map(branch => {
+                const targetNodeId = sourceNode.branchConnections[branch.id]?.targetNodeId;
+                const targetNode = targetNodeId ? workflowSteps.find(n => n.id === targetNodeId) : null;
+                
+                let endPoint;
+                if (targetNode) {
+                  endPoint = {
+                    x: targetNode.position.x + (NODE_WIDTH / 2),
+                    y: targetNode.position.y + edgeInputYOffset
+                  };
+                } else {
+                  endPoint = getBranchEndpoint(sourceNode, branch.id);
+                }
+                
+                if (!endPoint) return null;
+                
+                return (
+                  <ConnectorLine
+                    key={`branch-connector-${sourceNode.id}-${branch.id}`}
+                    startPos={{
+                      x: startX,
+                      y: startY
+                    }}
+                    endPos={endPoint}
+                    isHighlighted={selectedNodeIndex === workflowSteps.indexOf(sourceNode) ||
+                                  (targetNode && selectedNodeIndex === workflowSteps.indexOf(targetNode))}
+                    label={branch.label}
+                  />
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
+      </g>
+    );
+  };
+
+  // Render "+" buttons for nodes with flexibility for both standard connections and branches
+  const renderAddNodeButtons = () => {
+    return (
+      <>
+        {/* Render standard node connection buttons */}
+        {workflowSteps.map(node => {
+          // Skip branch nodes
+          const nodePlugin = pluginRegistry.getNodeType(node.type);
+          const hasBranches = nodePlugin && nodePlugin.hasMultipleBranches(node);
+          
+          if (hasBranches) return null;
+          
+          const nodeIndex = workflowSteps.indexOf(node);
+          
+          return (
+            <AddNodeButton
+              key={`add-button-${node.id}`}
+              position={{
+                x: node.position.x,
+                y: node.position.y + (node.height || DEFAULT_NODE_HEIGHT) + 50
+              }}
+              nodeWidth={NODE_WIDTH}
+              buttonSize={BUTTON_SIZE}
+              onAdd={(e) => handleShowAddMenu(nodeIndex, e)}
+              isHighlighted={nodeIndex === selectedNodeIndex}
+              onMouseEnter={handleMenuMouseEnter}
+              onMouseLeave={handleMenuMouseLeave}
+              showMenu={activeAddButtonIndex === nodeIndex}
+              sourceNodeId={node.id}
+              sourceType="standard"
+            />
+          );
+        })}
+        
+        {/* Render branch endpoint buttons */}
+        {workflowSteps.map(node => {
+          const nodePlugin = pluginRegistry.getNodeType(node.type);
+          if (!nodePlugin || !nodePlugin.hasMultipleBranches(node)) return null;
+          
+          const branches = nodePlugin.getBranches(node);
+          if (!branches || branches.length < 2) return null;
+          
+          const nodeIndex = workflowSteps.indexOf(node);
+          
+          return (
+            <React.Fragment key={`branch-buttons-${node.id}`}>
+              {branches.map(branch => {
+                const targetNodeId = node.branchConnections?.[branch.id]?.targetNodeId;
+                const targetNode = targetNodeId ? workflowSteps.find(n => n.id === targetNodeId) : null;
+                
+                if (!targetNode) {
+                  // Show endpoint button if branch has no target
+                  const endpoint = getBranchEndpoint(node, branch.id);
+                  
+                  return (
+                    <BranchEndpointButton
+                      key={`branch-button-${node.id}-${branch.id}`}
+                      position={endpoint}
+                      buttonSize={BUTTON_SIZE}
+                      onAdd={(e) => handleShowBranchAddMenu(nodeIndex, branch.id, e)}
+                      isHighlighted={selectedNodeIndex === nodeIndex}
+                      onMouseEnter={handleMenuMouseEnter}
+                      onMouseLeave={handleMenuMouseLeave}
+                      showMenu={activeBranchButton?.nodeIndex === nodeIndex && 
+                              activeBranchButton?.branchId === branch.id}
+                      sourceNodeId={node.id}
+                      branchId={branch.id}
+                    />
+                  );
+                } else {
+                  // Show continuation button after target node
+                  const targetPlugin = pluginRegistry.getNodeType(targetNode.type);
+                  const targetHasBranches = targetPlugin && targetPlugin.hasMultipleBranches(targetNode);
+                  const targetIndex = workflowSteps.indexOf(targetNode);
+                  
+                  if (!targetHasBranches && targetIndex >= 0) {
+                    return (
+                      <AddNodeButton
+                        key={`branch-button-after-${targetNode.id}`}
+                        position={{
+                          x: targetNode.position.x,
+                          y: targetNode.position.y + (targetNode.height || DEFAULT_NODE_HEIGHT) + 50
+                        }}
+                        nodeWidth={NODE_WIDTH}
+                        buttonSize={BUTTON_SIZE}
+                        onAdd={(e) => handleShowAddMenu(targetIndex, e)}
+                        isHighlighted={targetIndex === selectedNodeIndex}
+                        onMouseEnter={handleMenuMouseEnter}
+                        onMouseLeave={handleMenuMouseLeave}
+                        showMenu={activeAddButtonIndex === targetIndex}
+                        sourceNodeId={targetNode.id}
+                        sourceType="branch-continuation"
+                      />
+                    );
+                  }
+                }
+                return null;
+              })}
+            </React.Fragment>
+          );
+        })}
+      </>
+    );
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Header */}
@@ -1682,7 +1882,6 @@ const AutomationWorkflow = () => {
           }}
           onMouseDown={handleCanvasMouseDown}
         >
-          {/* Transform container */}
           {/* SVG for all connections */}
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
             <svg
@@ -1697,121 +1896,9 @@ const AutomationWorkflow = () => {
               }}
             >
               <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
-                {/* Draw connector lines for standard (non-branching) nodes */}
-                {workflowSteps.map((step, index) => {
-                  const nodePlugin = pluginRegistry.getNodeType(step.type);
-                  
-                  // If this is a branching node, we'll handle it differently
-                  if (nodePlugin && nodePlugin.hasMultipleBranches(step)) {
-                    return null; // Skip standard connections for branching nodes
-                  }
-                  
-                  // Only connect if there is a next node and this isn't a branch node
-                  return (
-                    index < workflowSteps.length - 1 && (
-                     <ConnectorLine
-                       key={`connector-${step.id}-${workflowSteps[index + 1].id}`}
-                       startPos={{
-                         x: step.position.x + (NODE_WIDTH / 2), // Center of the node
-                         y: step.position.y + (step.height || DEFAULT_NODE_HEIGHT) + edgeOutputYOffset
-                       }}
-                       endPos={{
-                         x: workflowSteps[index + 1].position.x + (NODE_WIDTH / 2), // Center of the node
-                         y: workflowSteps[index + 1].position.y + edgeInputYOffset
-                       }}
-                       isHighlighted={index === selectedNodeIndex || index + 1 === selectedNodeIndex ||
-                                      index === highlightedConnection}
-                     />
-                    )
-                  );
-                })}
-{/* Special branching connections for If/Else and Split nodes */}
-{workflowSteps.map((step, index) => {
-  const nodePlugin = pluginRegistry.getNodeType(step.type);
-  
-  // Only process nodes that have multiple branches
-  if (!nodePlugin || !nodePlugin.hasMultipleBranches(step)) {
-    return null;
-  }
-  
-  // Get dynamic branches for this node
-  const branches = nodePlugin.getBranches(step);
-  if (!branches || branches.length < 2) {
-    return null;
-  }
-  
-  // Calculate center point of the node
-  const startX = step.position.x + (NODE_WIDTH / 2);
-  const startY = step.position.y + (step.height || DEFAULT_NODE_HEIGHT) + edgeOutputYOffset;
-  
-  // Create a fragment for all branch connections
-  return (
-    <React.Fragment key={`branches-${step.id}`}>
-      {branches.map(branch => {
-        // Check if this branch has a target connection
-        const targetId = step.branchConnections?.[branch.id]?.targetNodeId;
-        const targetNode = targetId ? workflowSteps.find(n => n.id === targetId) : null;
-        
-        // Calculate endpoint for the branch
-        let endPoint;
-        
-        if (targetNode) {
-          // If there's a target node, connect directly to it
-          endPoint = {
-            x: targetNode.position.x + (NODE_WIDTH / 2),
-            y: targetNode.position.y + edgeInputYOffset
-          };
-        } else {
-          // Otherwise, use the branch endpoint
-          if (step.type === 'ifelse') {
-            if (branch.id === 'yes') {
-              endPoint = {
-                x: step.position.x - 150 + (NODE_WIDTH / 2),
-                y: startY + 100
-              };
-            } else {
-              endPoint = {
-                x: step.position.x + 150 + (NODE_WIDTH / 2),
-                y: startY + 100
-              };
-            }
-          } else if (step.type === 'splitflow') {
-            // For splitflow, use similar logic
-            if (branch.id === 'other' || branch.id.includes('branch_1')) {
-              endPoint = {
-                x: step.position.x + 150 + (NODE_WIDTH / 2),
-                y: startY + 100
-              };
-            } else {
-              endPoint = {
-                x: step.position.x - 150 + (NODE_WIDTH / 2),
-                y: startY + 100
-              };
-            }
-          }
-        }
-        
-        // Skip if no endpoint was calculated
-        if (!endPoint) return null;
-        
-        return (
-          <ConnectorLine
-            key={`connector-${step.id}-${branch.id}`}
-            startPos={{
-              x: startX,
-              y: startY
-            }}
-            endPos={endPoint}
-            isHighlighted={index === selectedNodeIndex || (targetId && workflowSteps.findIndex(n => n.id === targetId) === selectedNodeIndex)}
-            label={branch.label}
-          />
-        );
-      })}
-    </React.Fragment>
-  );
-})}
+                {renderConnections()}
               </g>
-            </svg>
+          </svg>
           </div>
           
           {/* Transform container for nodes and buttons */}
@@ -1827,126 +1914,35 @@ const AutomationWorkflow = () => {
               zIndex: 1
             }}
           >
-            {/* Render AddNodeButtons for branch endpoints */}
-            {workflowSteps.map((step, index) => {
-              const nodePlugin = pluginRegistry.getNodeType(step.type);
-              if (!nodePlugin || !nodePlugin.hasMultipleBranches(step)) return null;
-              
-              const branches = nodePlugin.getBranches(step);
-              if (!branches || branches.length < 2) return null;
-              
-              return (
-                <React.Fragment key={`branch-buttons-${step.id}`}>
-                  {branches.map(branch => {
-                    // Skip if branch already has a target
-                    if (step.branchConnections?.[branch.id]?.targetNodeId) return null;
-                    
-                    const endpoint = getBranchEndpoint(step, branch.id);
-                    
-                    return (
-                      <AddNodeButton
-                        key={`branch-button-${step.id}-${branch.id}`}
-                        position={{
-                          x: endpoint.x, // Use exact endpoint position
-                          y: endpoint.y
-                        }}
-                        nodeWidth={0} // Set to zero to prevent position adjustments in AddNodeButton
-                        buttonSize={BUTTON_SIZE}
-                        onAdd={(e) => handleShowBranchAddMenu(index, branch.id, e)}
-                        isHighlighted={selectedNodeIndex === index}
-                        onMouseEnter={handleMenuMouseEnter}
-                        onMouseLeave={handleMenuMouseLeave}
-                        showMenu={activeBranchButton?.nodeIndex === index &&
-                                 activeBranchButton?.branchId === branch.id}
-                      />
-                    );
-                  })}
-                </React.Fragment>
-              );
-            })}
+            {renderAddNodeButtons()}
             
-            {/* Render workflow steps */}
+            {/* Render all nodes */}
             {workflowSteps.map((step, index) => (
-              <React.Fragment key={step.id}>
-                <WorkflowStep
-                  id={step.id}
-                  type={step.type}
-                  title={step.title}
-                  subtitle={step.subtitle}
-                  position={step.position}
-                  transform={transform}
-                  onClick={handleStepClick}
-                  onDragStart={(id, position) => {
-                    const dragIndex = workflowSteps.findIndex(step => step.id === id);
-                    setSelectedNodeIndex(dragIndex);
-                    // Save the original position for undo/redo
-                    setDragStartPosition(position);
-                  }}
-                  onDrag={handleNodeDrag}
-                  onDragEnd={handleNodeDragEnd}
-                  onHeightChange={handleNodeHeightChange}
-                  isNew={step.isNew || false}
-                  isAnimating={animatingNodes.includes(step.id)}
-                  isSelected={selectedNodeIndex === index}
-                  contextMenuConfig={step.contextMenuConfig}
-                />
-                
-                {/* Add "+" button after each step (but not for branching nodes) */}
-                {index < workflowSteps.length - 1 && (() => {
-                  // Check if the current node is a branching node
-                  const nodePlugin = pluginRegistry.getNodeType(step.type);
-                  const hasBranches = nodePlugin && nodePlugin.hasMultipleBranches(step);
-                  
-                  // Only render the add button if this is not a branching node
-                  if (!hasBranches) {
-                    return (
-                      <AddNodeButton
-                        position={{
-                          x: step.position.x + ((workflowSteps[index + 1].position.x - step.position.x) / 2),
-                          y: step.position.y + (step.height || 90) + ((workflowSteps[index + 1].position.y - (step.position.y + (step.height || 90))) / 2) + buttonYOffset
-                        }}
-                        nodeWidth={NODE_WIDTH}
-                        buttonSize={BUTTON_SIZE}
-                        onAdd={(e) => handleShowAddMenu(index, e)}
-                        isHighlighted={index === selectedNodeIndex || index + 1 === selectedNodeIndex}
-                        onMouseEnter={handleMenuMouseEnter}
-                        onMouseLeave={handleMenuMouseLeave}
-                        showMenu={activeAddButtonIndex === index}
-                      />
-                    );
-                  }
-                  return null;
-                })()}
-              </React.Fragment>
+              <WorkflowStep
+                key={step.id}
+                id={step.id}
+                type={step.type}
+                title={step.title}
+                subtitle={step.subtitle}
+                position={step.position}
+                transform={transform}
+                onClick={handleStepClick}
+                onDragStart={(id, position) => {
+                  const dragIndex = workflowSteps.findIndex(step => step.id === id);
+                  setSelectedNodeIndex(dragIndex);
+                  setDragStartPosition(position);
+                }}
+                onDrag={handleNodeDrag}
+                onDragEnd={handleNodeDragEnd}
+                onHeightChange={handleNodeHeightChange}
+                isNew={step.isNew || false}
+                isAnimating={animatingNodes.includes(step.id)}
+                isSelected={selectedNodeIndex === index}
+                contextMenuConfig={step.contextMenuConfig}
+              />
             ))}
-            {/* Add final "+" button below the last node (but not for branching nodes) */}
-            {workflowSteps.length > 0 && (() => {
-              // Check if the last node is a branching node
-              const lastNode = workflowSteps[workflowSteps.length - 1];
-              const nodePlugin = pluginRegistry.getNodeType(lastNode.type);
-              const hasBranches = nodePlugin && nodePlugin.hasMultipleBranches(lastNode);
-              
-              // Only render the add button if the last node is not a branching node
-              if (!hasBranches) {
-                return (
-                  <AddNodeButton
-                    position={{
-                      x: workflowSteps[workflowSteps.length - 1].position.x,
-                      y: workflowSteps[workflowSteps.length - 1].position.y + (workflowSteps[workflowSteps.length - 1].height || 90) + 50 + buttonYOffset
-                    }}
-                    nodeWidth={NODE_WIDTH}
-                    buttonSize={BUTTON_SIZE}
-                    onAdd={(e) => handleShowAddMenu(workflowSteps.length - 1, e)}
-                    isHighlighted={workflowSteps.length - 1 === selectedNodeIndex}
-                    onMouseEnter={handleMenuMouseEnter}
-                    onMouseLeave={handleMenuMouseLeave}
-                    showMenu={activeAddButtonIndex === workflowSteps.length - 1}
-                  />
-                );
-              }
-              return null;
-            })()}
           </div>
+          
           {/* Canvas instructions overlay */}
           <div className="absolute bottom-4 left-4 bg-white bg-opacity-95 rounded-lg shadow-sm p-2 text-sm text-gray-600 flex items-center">
             <Move className="w-4 h-4 mr-1" /> Drag canvas to pan •
