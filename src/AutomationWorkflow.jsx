@@ -654,9 +654,9 @@ const AutomationWorkflow = () => {
       const index = branches.findIndex(b => b.id === branchId);
       
       if (branchId === 'other' || index === branches.length - 1) {
-        return { x: node.position.x + 150 + (DEFAULT_NODE_WIDTH / 2), y: startY + 100 };
+        return { x: node.position.x + 65 + (DEFAULT_NODE_WIDTH / 2), y: startY + 40 };
       } else {
-        return { x: node.position.x - 150 + (DEFAULT_NODE_WIDTH / 2), y: startY + 100 };
+        return { x: node.position.x - 65 + (DEFAULT_NODE_WIDTH / 2), y: startY + 40 };
       }
     }
     
@@ -1399,6 +1399,29 @@ const AutomationWorkflow = () => {
     e.stopPropagation();
   }, [workflowGraph, activeBranchButton]);
   
+  // Handle showing the branch edge menu (when clicking + on a branch connection)
+  const handleShowBranchEdgeMenu = useCallback((nodeId, branchId, e) => {
+    // Don't show menu if node doesn't exist
+    if (!workflowGraph.getNode(nodeId)) return;
+    
+    console.log(`Branch edge menu clicked: Node ${nodeId}, Branch ${branchId}`);
+    
+    // Toggle the active branch button
+    setActiveBranchButton(prev => {
+      if (prev && prev.nodeId === nodeId && prev.branchId === branchId) {
+        return null;
+      }
+      return { nodeId, branchId };
+    });
+    
+    // If opening, reset any active add buttons
+    if (!activeBranchButton || activeBranchButton.nodeId !== nodeId || activeBranchButton.branchId !== branchId) {
+      setActiveAddButtonNodeId(null);
+    }
+    
+    e.stopPropagation();
+  }, [workflowGraph, activeBranchButton]);
+  
   // This function calculates the connection endpoints
   const calculateConnectionPoints = useCallback((sourceNode, targetNode) => {
     if (!sourceNode || !targetNode) return { startPos: null, endPos: null };
@@ -1495,19 +1518,38 @@ const renderConnections = useCallback(() => {
         
         const buttonPosition = { x: midX, y: midY };
         
+        // For branch edges, use handleShowBranchEdgeMenu instead
+        const onAddHandler = edge.type === CONNECTION_TYPES.BRANCH
+          ? (e) => handleShowBranchEdgeMenu(edge.sourceId, edge.label, e)
+          : (e) => handleShowAddMenu(edge.sourceId, e);
+        
+        const isHighlighted = edge.type === CONNECTION_TYPES.BRANCH
+          ? activeBranchButton &&
+            activeBranchButton.nodeId === edge.sourceId &&
+            activeBranchButton.branchId === edge.label
+          : activeAddButtonNodeId === edge.sourceId;
+        
+        const showMenu = edge.type === CONNECTION_TYPES.BRANCH
+          ? activeBranchButton &&
+            activeBranchButton.nodeId === edge.sourceId &&
+            activeBranchButton.branchId === edge.label
+          : activeAddButtonNodeId === edge.sourceId;
+            
+        console.log(`Rendering button for edge: ${edge.sourceId} -> ${edge.targetId}, type: ${edge.type}, label: ${edge.label}`);
+        
         buttons.push(
           <AddNodeButton
-            key={`add-button-edge-${edge.sourceId}-${edge.targetId}-${edge.type}`}
+            key={`add-button-edge-${edge.sourceId}-${edge.targetId}-${edge.type}-${edge.label || 'default'}`}
             position={buttonPosition}
             nodeWidth={0} // Not node-relative anymore
             buttonSize={BUTTON_SIZE}
-            onAdd={(e) => handleShowAddMenu(edge.sourceId, e)}
-            isHighlighted={activeAddButtonNodeId === edge.sourceId}
+            onAdd={onAddHandler}
+            isHighlighted={isHighlighted}
             onMouseEnter={() => {}} // No action needed
             onMouseLeave={() => {}} // No action needed
-            showMenu={activeAddButtonNodeId === edge.sourceId}
+            showMenu={showMenu}
             sourceNodeId={edge.sourceId}
-            sourceType="standard"
+            sourceType={edge.type === CONNECTION_TYPES.BRANCH ? "branch" : "standard"}
           />
         );
       }
@@ -1590,7 +1632,9 @@ const renderConnections = useCallback(() => {
   }, [
     workflowGraph,
     activeAddButtonNodeId,
+    activeBranchButton,
     handleShowAddMenu,
+    handleShowBranchEdgeMenu,
     calculateConnectionPoints,
     calculateBranchConnectionPoints
   ]);
@@ -1619,39 +1663,99 @@ const renderConnections = useCallback(() => {
         onMouseLeave={handleMenuMouseLeave}
       >
         <div className="flex space-x-2">
-          <button 
+          <button
             className="p-2 flex flex-col items-center text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md w-20 h-20"
-            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.TRIGGER)}
+            onClick={() => {
+              // Check if this is from a branch edge
+              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
+                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
+                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
+              
+              handleAddStep(
+                activeAddButtonNodeId,
+                NODE_TYPES.TRIGGER,
+                branchInfo.type,
+                branchInfo.branchId
+              );
+            }}
           >
             <Zap className="w-6 h-6 mb-1" />
             Trigger
           </button>
-          <button 
+          <button
             className="p-2 flex flex-col items-center text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md w-20 h-20"
-            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.CONTROL)}
+            onClick={() => {
+              // Check if this is from a branch edge
+              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
+                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
+                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
+              
+              handleAddStep(
+                activeAddButtonNodeId,
+                NODE_TYPES.CONTROL,
+                branchInfo.type,
+                branchInfo.branchId
+              );
+            }}
           >
             <Hexagon className="w-6 h-6 mb-1" />
             Control
           </button>
-          <button 
+          <button
             className="p-2 flex flex-col items-center text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded-md w-20 h-20"
-            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.ACTION)}
+            onClick={() => {
+              // Check if this is from a branch edge
+              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
+                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
+                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
+              
+              handleAddStep(
+                activeAddButtonNodeId,
+                NODE_TYPES.ACTION,
+                branchInfo.type,
+                branchInfo.branchId
+              );
+            }}
           >
             <Send className="w-6 h-6 mb-1" />
             Action
           </button>
         </div>
         <div className="flex space-x-2 mt-2">
-          <button 
+          <button
             className="p-2 flex flex-col items-center text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md w-20 h-20"
-            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.IFELSE)}
+            onClick={() => {
+              // Check if this is from a branch edge
+              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
+                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
+                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
+              
+              handleAddStep(
+                activeAddButtonNodeId,
+                NODE_TYPES.IFELSE,
+                branchInfo.type,
+                branchInfo.branchId
+              );
+            }}
           >
             <GitBranch className="w-6 h-6 mb-1" />
             If/Else
           </button>
-          <button 
+          <button
             className="p-2 flex flex-col items-center text-xs bg-green-50 hover:bg-green-100 text-green-700 rounded-md w-20 h-20"
-            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.SPLITFLOW)}
+            onClick={() => {
+              // Check if this is from a branch edge
+              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
+                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
+                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
+              
+              handleAddStep(
+                activeAddButtonNodeId,
+                NODE_TYPES.SPLITFLOW,
+                branchInfo.type,
+                branchInfo.branchId
+              );
+            }}
           >
             <GitMerge className="w-6 h-6 mb-1" />
             Split Flow
@@ -1660,11 +1764,12 @@ const renderConnections = useCallback(() => {
       </div>
     );
   }, [
-    activeAddButtonNodeId, 
-    workflowGraph, 
-    buttonYOffset, 
-    handleMenuMouseEnter, 
-    handleMenuMouseLeave, 
+    activeAddButtonNodeId,
+    activeBranchButton,
+    workflowGraph,
+    buttonYOffset,
+    handleMenuMouseEnter,
+    handleMenuMouseLeave,
     handleAddStep
   ]);
   
