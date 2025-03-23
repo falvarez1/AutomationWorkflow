@@ -60,8 +60,8 @@ const AddNodeButton = ({
         
         {/* Show tooltip on hover (only if menu is not shown) */}
         {isHovered && !showMenu && (
-          <div className="absolute top-full mt-2 bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50">
-            Add node
+          <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50">
+            Add step
           </div>
         )}
       </button>
