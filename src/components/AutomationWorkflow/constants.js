@@ -38,39 +38,15 @@ export const INITIAL_WORKFLOW_STEPS = [
     height: DEFAULT_NODE_HEIGHT,
     contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     outgoingConnections: {
-      default: { targetNodeId: "two-day-delay-node" }
-    }
-  },
-  {
-    id: "two-day-delay-node",
-    type: 'control',
-    title: 'Delay',
-    subtitle: '2 days',
-    position: { x: window.innerWidth / 2, y: 200 },
-    height: DEFAULT_NODE_HEIGHT,
-    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
-    outgoingConnections: {
-      default: { targetNodeId: "send-email-node" }
-    }
-  },
-  {
-    id: "send-email-node",
-    type: 'action',
-    title: 'Send email',
-    subtitle: 'Just one more step to go',
-    position: { x: window.innerWidth / 2, y: 350 },
-    height: DEFAULT_NODE_HEIGHT,
-    contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
-    outgoingConnections: {
       default: { targetNodeId: "check-clicked-node" }
     }
-  },
+  },  
   {
     id: "check-clicked-node",
     type: 'ifelse',
     title: 'Check if clicked',
     subtitle: 'Email link was clicked',
-    position: { x: window.innerWidth / 2, y: 525 },
+    position: { x: window.innerWidth / 2, y: 225 },
     height: DEFAULT_NODE_HEIGHT,
     contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     branchConnections: {
@@ -86,7 +62,7 @@ export const INITIAL_WORKFLOW_STEPS = [
     title: 'Yes Branch Action',
     subtitle: 'When email was clicked',
     // Position to the left based on getBranchEndpoint function
-    position: { x: window.innerWidth / 2 - 150, y: 650 },
+    position: { x: window.innerWidth / 2 - 190, y: 450 },
     height: DEFAULT_NODE_HEIGHT,
     contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     outgoingConnections: {
@@ -100,7 +76,7 @@ export const INITIAL_WORKFLOW_STEPS = [
     title: 'No Branch Action',
     subtitle: 'When email was not clicked',
     // Position to the right based on getBranchEndpoint function
-    position: { x: window.innerWidth / 2 + 150, y: 650 },
+    position: { x: window.innerWidth / 2 + 190, y: 450 },
     height: DEFAULT_NODE_HEIGHT,
     contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     outgoingConnections: {
