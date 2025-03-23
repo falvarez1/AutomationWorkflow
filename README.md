@@ -1,70 +1,153 @@
-# Getting Started with Create React App
+# AutomationWorkflow
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A powerful and flexible React-based workflow automation builder with a graph-based architecture. AutomationWorkflow provides a visual interface for creating, configuring, and managing complex automation workflows.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- **Interactive Canvas**: Drag, drop, and connect nodes with an intuitive interface
+- **Graph-Based Architecture**: Robust node and edge management with efficient data structures
+- **Multiple Node Types**: Built-in support for Trigger, Control, Action, If/Else, and Split Flow nodes
+- **Advanced Validation**: Comprehensive validation framework with customizable rules
+- **Command Pattern**: Full undo/redo functionality for all actions
+- **Dynamic Property Panels**: Configuration panels that adapt to each node type
+- **Extensible Plugin System**: Easily add custom node types and controls
 
-### `npm start`
+## Architecture
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+AutomationWorkflow is built on several well-designed architectural components:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Graph-Based Core
 
-### `npm test`
+The workflow is represented as a directed acyclic graph (DAG) with:
+- Nodes representing workflow steps
+- Edges representing connections between steps
+- Map-based storage for O(1) lookups
+- Support for both default and branch connections
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Component Architecture
 
-### `npm run build`
+- **Command Pattern**: All operations are encapsulated in command objects that support undo/redo
+- **Plugin System**: Extensible architecture for different node types
+- **UI Controls Framework**: Composition-based approach for creating property controls
+- **Validation Framework**: Centralized validation with rule registry and builder pattern
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Getting Started
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Prerequisites
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+- Node.js 16+
+- npm or yarn
 
-### `npm run eject`
+### Installation
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/automation-workflow.git
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+# Navigate to the project directory
+cd automation-workflow
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+# Install dependencies
+npm install
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Start the development server
+npm start
+```
 
-## Learn More
+## Usage
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+The AutomationWorkflow component can be imported and used in your React application:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```jsx
+import AutomationWorkflow from './AutomationWorkflow';
 
-### Code Splitting
+function App() {
+  return (
+    <div className="App">
+      <h1>My Workflow</h1>
+      <AutomationWorkflow initialWorkflowSteps={[]} />
+    </div>
+  );
+}
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Extending the Workflow
 
-### Analyzing the Bundle Size
+### Adding Custom Node Types
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Create a new node plugin:
 
-### Making a Progressive Web App
+```javascript
+import { createNodePlugin } from './components/AutomationWorkflow/plugins/createNodePlugin';
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+export const MyCustomNodePlugin = createNodePlugin({
+  type: 'custom',
+  name: 'My Custom Node',
+  icon: CustomIcon,
+  color: 'purple',
+  description: 'A custom node type',
+  
+  // Define property groups and schema
+  propertyGroups: [...],
+  propertySchema: [...],
+  
+  // Define validation rules
+  validationRules: {...},
+  
+  // Define initial properties
+  initialProperties: {...}
+});
 
-### Advanced Configuration
+// Register the plugin
+pluginRegistry.registerNodeType(MyCustomNodePlugin);
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+### Adding Custom Property Controls
 
-### Deployment
+Create a custom property control:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+```javascript
+import { createFormControl } from './components/AutomationWorkflow/controls/createFormControl';
+import CustomElement from './elements/CustomElement';
 
-### `npm run build` fails to minify
+export const CustomControl = createFormControl({
+  type: 'custom',
+  renderInput: (props) => <CustomElement {...props} />,
+  validate: (value, rules) => {
+    // Custom validation logic
+    return null; // Return error message or null if valid
+  }
+});
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+// Register the control
+pluginRegistry.registerPropertyControl(CustomControl);
+```
+
+## Recent Refactoring Improvements
+
+The project has undergone several major refactoring initiatives:
+
+1. **Command Pattern Refactoring**: Enhanced the command system with better base classes and shared functionality
+2. **UI Controls Refactoring**: Implemented a component-based architecture for form controls
+3. **Node Plugin Refactoring**: Standardized plugin implementation with factory functions
+4. **Validation Framework Refactoring**: Centralized validation logic with rule registry
+5. **Graph-Based Architecture Refactoring**: Improved node and edge management with a Map-based structure
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- React team for the amazing library
+- Contributors who have helped shape this project
