@@ -2056,19 +2056,7 @@ const renderConnections = useCallback(() => {
         {/* Properties panel */}
         {selectedNode && (
           <div className="w-1/3 max-w-md border-l border-gray-200 bg-white overflow-y-auto animate-slideIn">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-gray-900 flex items-center">
-                  Node Properties
-                </h2>
-                <button
-                  onClick={() => setSelectedNodeId(null)}
-                  className="text-gray-400 hover:text-gray-500"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-              </div>
-
+            <div className="p-6"> 
               <NodePropertiesPanel
                 node={selectedNode}
                 registry={pluginRegistry}

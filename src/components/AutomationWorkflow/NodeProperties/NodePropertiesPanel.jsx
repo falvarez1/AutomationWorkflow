@@ -38,8 +38,7 @@ const NodePropertiesPanel = React.memo(({
   const propertyGroups = plugin.getPropertyGroups();
   
   return (
-    <div className="w-80 border-l bg-white overflow-y-auto animate-slideIn">
-      <div className="p-4">
+      <div id="node-properties-panel">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-medium text-gray-900">
             <span className={`inline-block w-3 h-3 rounded-full bg-${plugin.color}-500 mr-2`}></span>
@@ -61,8 +60,7 @@ const NodePropertiesPanel = React.memo(({
           onChange={handlePropertyChange}
           onValidate={handleValidation}
         />
-      </div>
-    </div>
+      </div>    
   );
 });
 
