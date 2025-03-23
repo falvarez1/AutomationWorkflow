@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './App.css';
 import './index.css';
-import AutomationWorkflow from './AutomationWorkflow';
-import { testDeleteUndoFix } from './test-fix';
+import BranchButtonsTest from './components/AutomationWorkflow/tests/BranchButtonsTest';
 
 function App() {
   return (
     <div className="App">
-      <AutomationWorkflow />
+      <BranchButtonsTest />
     </div>
   );
 }
