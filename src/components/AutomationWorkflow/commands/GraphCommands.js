@@ -13,11 +13,32 @@ class AddNodeCommand {
     this.createdEdge = null;
     this.oldTargetNodeId = null;
     this.oldEdge = null;
+    this.nodeVerticalSpacing = 150; // Vertical spacing between nodes
+    this.movedNodes = []; // Track nodes that were moved down
   }
 
   execute() {
-    // Add the new node to the graph
-    this.graph.addNode(this.newNode);
+    // We need to identify nodes below the insertion point *before* adding the node
+    const allNodes = this.graph.getAllNodes();
+    const newNodeY = this.newNode.position.y;
+    
+    // Save the current state for finding nodes later if we add a node above
+    // this one in future operations
+    this.insertionY = newNodeY;
+    
+    // Find all nodes that are below or exactly at the new node's Y position
+    // except for the source node and our new node
+    allNodes.forEach(node => {
+      // Only exclude the source node - we want to move any existing node at this position
+      // and any node below this position that isn't the source
+      if (node.position.y >= newNodeY && node.id !== this.sourceNodeId) {
+        // Save original position for undo
+        this.movedNodes.push({
+          id: node.id,
+          oldY: node.position.y
+        });
+      }
+    });
 
     // If there's a source node, create the connection
     if (this.sourceNodeId) {
@@ -39,16 +60,16 @@ class AddNodeCommand {
           
           // Create the new connection
           this.createdEdge = this.graph.connect(
-            this.sourceNodeId, 
-            this.addedNodeId, 
+            this.sourceNodeId,
+            this.addedNodeId,
             'default'
           );
           
           // If there was a previous target, connect the new node to it
           if (this.oldTargetNodeId) {
             this.graph.connect(
-              this.addedNodeId, 
-              this.oldTargetNodeId, 
+              this.addedNodeId,
+              this.oldTargetNodeId,
               'default'
             );
           }
@@ -65,28 +86,61 @@ class AddNodeCommand {
           
           // Create new branch connection
           this.createdEdge = this.graph.connect(
-            this.sourceNodeId, 
-            this.addedNodeId, 
-            'branch', 
+            this.sourceNodeId,
+            this.addedNodeId,
+            'branch',
             this.branchId
           );
           
           // Connect to previous target if it existed
           if (this.oldTargetNodeId) {
             this.graph.connect(
-              this.addedNodeId, 
-              this.oldTargetNodeId, 
+              this.addedNodeId,
+              this.oldTargetNodeId,
               'default'
             );
           }
         }
       }
     }
+    // Add the node to the graph
+    this.graph.addNode(this.newNode);
+    
+    // Move all nodes below the insertion point down
+    if (this.movedNodes.length > 0) {
+      this.movedNodes.forEach(movedNode => {
+        const node = this.graph.getNode(movedNode.id);
+        if (node) {
+          // Update with the correct spacing from the original position
+          this.graph.updateNode(movedNode.id, {
+            position: {
+              ...node.position,
+              y: movedNode.oldY + this.nodeVerticalSpacing
+            }
+          });
+        }
+      });
+    }
     
     return true;
   }
 
   undo() {
+    // Restore the original positions of nodes that were moved down
+    if (this.movedNodes.length > 0) {
+      this.movedNodes.forEach(movedNode => {
+        const node = this.graph.getNode(movedNode.id);
+        if (node) {
+          this.graph.updateNode(movedNode.id, {
+            position: {
+              ...node.position,
+              y: movedNode.oldY
+            }
+          });
+        }
+      });
+    }
+    
     // First restore any edges that were removed
     if (this.oldEdge) {
       // Recreate the original connection
