@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
@@ -20,8 +20,16 @@ import {
   RotateCw
 } from 'lucide-react';
 
-// Import command pattern components
-import { commandManager, DeleteNodeCommand, MoveNodeCommand, AddNodeCommand } from './components/AutomationWorkflow/commands';
+// Import Graph and command pattern components
+import { Graph } from './components/AutomationWorkflow/graph/Graph';
+import { 
+  commandManager,
+  AddNodeCommand,
+  MoveNodeCommand,
+  DeleteNodeCommand,
+  UpdateNodeCommand,
+  UpdateEdgeCommand
+} from './components/AutomationWorkflow/commands';
 
 // Import the plugin registry and plugins
 import { pluginRegistry } from './components/AutomationWorkflow/plugins/registry';
@@ -42,6 +50,23 @@ import {
   CheckboxControl
 } from './components/AutomationWorkflow/controls';
 
+// Import constants
+import {
+  DEFAULT_NODE_HEIGHT,
+  DEFAULT_NODE_WIDTH,
+  GRID_SIZE,
+  ZOOM_MIN,
+  ZOOM_MAX,
+  AUTO_HIDE_TIMEOUT,
+  BUTTON_SIZE,
+  EDGE_INPUT_Y_OFFSET,
+  EDGE_OUTPUT_Y_OFFSET,
+  BUTTON_Y_OFFSET,
+  NODE_TYPES,
+  CONNECTION_TYPES,
+  INITIAL_WORKFLOW_STEPS
+} from './components/AutomationWorkflow/constants';
+
 // Register node types
 pluginRegistry.registerNodeType(TriggerNodePlugin);
 pluginRegistry.registerNodeType(ControlNodePlugin);
@@ -53,14 +78,6 @@ pluginRegistry.registerPropertyControl(TextInputControl);
 pluginRegistry.registerPropertyControl(SelectControl);
 pluginRegistry.registerPropertyControl(NumberControl);
 pluginRegistry.registerPropertyControl(CheckboxControl);
-
-// Constants
-const DEFAULT_NODE_HEIGHT = 90;
-const DEFAULT_NODE_WIDTH = 300;
-const GRID_SIZE = 20;
-const ZOOM_MIN = 0.2;
-const ZOOM_MAX = 2;
-const AUTO_HIDE_TIMEOUT = 2500; // 2.5 seconds
 
 // Draggable Workflow Step Component
 const WorkflowStep = ({ id, type, title, subtitle, position, transform, onClick, onDragStart, onDrag, onDragEnd, onHeightChange, isNew, isAnimating, isSelected, contextMenuConfig: propContextMenuConfig }) => {
@@ -78,33 +95,34 @@ const WorkflowStep = ({ id, type, title, subtitle, position, transform, onClick,
     offsetY: 0
   });
   const [wasJustClicked, setWasJustClicked] = useState(false);
-// Calculate and cache the header height when the component mounts
-useEffect(() => {
-  // Calculate and store the header height in the ref
-  headerHeightRef.current = calculateHeaderHeight();
   
-  // Recalculate on window resize for responsive layouts
-  const handleResize = () => {
+  // Calculate and cache the header height when the component mounts
+  useEffect(() => {
+    // Calculate and store the header height in the ref
     headerHeightRef.current = calculateHeaderHeight();
-  };
-  
-  window.addEventListener('resize', handleResize);
-  return () => window.removeEventListener('resize', handleResize);
-}, []); // Empty dependency array means this runs once on mount
+    
+    // Recalculate on window resize for responsive layouts
+    const handleResize = () => {
+      headerHeightRef.current = calculateHeaderHeight();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []); // Empty dependency array means this runs once on mount
 
-// Show context menu when hovering or selected
-useEffect(() => {
-  setShowContextMenu(isHovering || isSelected);
-}, [isHovering, isSelected]);
+  // Show context menu when hovering or selected
+  useEffect(() => {
+    setShowContextMenu(isHovering || isSelected);
+  }, [isHovering, isSelected]);
 
-// Handle initial animation after first render
-useEffect(() => {
-  if (isNew && !hasRendered) {
-    setTimeout(() => {
-      setHasRendered(true);
-    }, 50);
-  }
-}, [isNew, hasRendered]);
+  // Handle initial animation after first render
+  useEffect(() => {
+    if (isNew && !hasRendered) {
+      setTimeout(() => {
+        setHasRendered(true);
+      }, 50);
+    }
+  }, [isNew, hasRendered]);
 
   // Prevent deselection when clicking directly on a node
   useEffect(() => {
@@ -121,7 +139,7 @@ useEffect(() => {
   // Different styles based on step type
   const getTypeConfig = () => {
     switch (type) {
-      case 'trigger':
+      case NODE_TYPES.TRIGGER:
         return {
           label: <span className="px-3 py-1 text-sm font-medium text-white bg-blue-500 rounded">Trigger</span>,
           icon: <Zap className="w-6 h-6 text-blue-500" />,
@@ -130,7 +148,7 @@ useEffect(() => {
           selectedColor: 'border-blue-500',
           bgHover: 'hover:bg-blue-50'
         };
-      case 'control':
+      case NODE_TYPES.CONTROL:
         return {
           label: <span className="px-3 py-1 text-sm font-medium text-white bg-purple-500 rounded">Control</span>,
           icon: <Hexagon className="w-6 h-6 text-purple-500" />,
@@ -139,7 +157,7 @@ useEffect(() => {
           selectedColor: 'border-purple-500',
           bgHover: 'hover:bg-purple-50'
         };
-      case 'action':
+      case NODE_TYPES.ACTION:
         return {
           label: <span className="px-3 py-1 text-sm font-medium text-white bg-red-500 rounded">Action</span>,
           icon: <Zap className="w-6 h-6 text-red-500" />,
@@ -148,7 +166,7 @@ useEffect(() => {
           selectedColor: 'border-red-500',
           bgHover: 'hover:bg-red-50'
         };
-      case 'ifelse':
+      case NODE_TYPES.IFELSE:
         return {
           label: <span className="px-3 py-1 text-sm font-medium text-white bg-indigo-500 rounded">If/Else</span>,
           icon: <GitBranch className="w-6 h-6 text-indigo-500" />,
@@ -157,7 +175,7 @@ useEffect(() => {
           selectedColor: 'border-indigo-500',
           bgHover: 'hover:bg-indigo-50'
         };
-      case 'splitflow':
+      case NODE_TYPES.SPLITFLOW:
         return {
           label: <span className="px-3 py-1 text-sm font-medium text-white bg-green-500 rounded">Split Flow</span>,
           icon: <GitMerge className="w-6 h-6 text-green-500" />,
@@ -367,27 +385,27 @@ const NodeContextMenu = ({ position, nodeType, visible, onAction, menuPosition =
     ];
 
     switch (nodeType) {
-      case 'trigger':
+      case NODE_TYPES.TRIGGER:
         return [
           ...commonItems,
           { id: 'configure-trigger', icon: <Zap className="w-4 h-4 text-blue-500" />, label: 'Configure Trigger' }
         ];
-      case 'control':
+      case NODE_TYPES.CONTROL:
         return [
           ...commonItems,
           { id: 'set-conditions', icon: <Hexagon className="w-4 h-4 text-purple-500" />, label: 'Set Conditions' }
         ];
-      case 'action':
+      case NODE_TYPES.ACTION:
         return [
           ...commonItems,
           { id: 'configure-action', icon: <Send className="w-4 h-4 text-red-500" />, label: 'Configure Action' }
         ];
-      case 'ifelse':
+      case NODE_TYPES.IFELSE:
         return [
           ...commonItems,
           { id: 'configure-condition', icon: <GitBranch className="w-4 h-4 text-indigo-500" />, label: 'Configure Condition' }
         ];
-      case 'splitflow':
+      case NODE_TYPES.SPLITFLOW:
         return [
           ...commonItems,
           { id: 'configure-split', icon: <GitMerge className="w-4 h-4 text-green-500" />, label: 'Configure Split' }
@@ -468,8 +486,6 @@ const NodeContextMenu = ({ position, nodeType, visible, onAction, menuPosition =
 
 // Connector Line Component with Bezier Curves for smoother connections
 const ConnectorLine = ({ startPos, endPos, isHighlighted = false, label = null }) => {
-  // Static node dimensions (we're already using a constant NODE_WIDTH)
-
   // Use the positions as passed in - they're already positioned correctly
   // The startPos is the center bottom of the source node
   // The endPos is the center top of the target node
@@ -591,8 +607,6 @@ const AddNodeButton = ({ position, nodeWidth, buttonSize, onAdd, isHighlighted =
           </div>
         )}
       </button>
-
-
     </div>
   );
 };
@@ -673,111 +687,71 @@ const BranchEndpointButton = ({ position, buttonSize, onAdd, isHighlighted = fal
 
 // Main Automation Workflow Component
 const AutomationWorkflow = () => {
-  // Define constants at the component level
-  const NODE_WIDTH = 300;
-  const BUTTON_SIZE = 40;
-
-  const [activeTab, setActiveTab] = useState('flow');
-  const canvasRef = useRef(null);
-  // Add state for undo/redo capabilities
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-  const [workflowSteps, setWorkflowSteps] = useState([
-    {
-      id: "customer-joins-node",
-      type: 'trigger',
-      title: 'Customer joins Segment',
-      subtitle: 'Not onboarded',
-      position: { x: window.innerWidth / 2, y: 25 },
-      height: 90,
-      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
-      outgoingConnections: {
-        default: { targetNodeId: "two-day-delay-node" }
-      }
-    },
-    {
-      id: "two-day-delay-node",
-      type: 'control',
-      title: 'Delay',
-      subtitle: '2 days',
-      position: { x: window.innerWidth / 2, y: 200 },
-      height: 90,
-      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
-      outgoingConnections: {
-        default: { targetNodeId: "send-email-node" }
-      }
-    },
-    {
-      id: "send-email-node",
-      type: 'action',
-      title: 'Send email',
-      subtitle: 'Just one more step to go',
-      position: { x: window.innerWidth / 2, y: 350 },
-      height: 90,
-      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
-      outgoingConnections: {
-        default: { targetNodeId: "check-clicked-node" }
-      }
-    },
-    {
-      id: "check-clicked-node",
-      type: 'ifelse',
-      title: 'Check if clicked',
-      subtitle: 'Email link was clicked',
-      position: { x: window.innerWidth / 2, y: 525 },
-      height: 90,
-      contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
-      branchConnections: {
-        // Empty initially - will be filled when branch nodes are added
-      }
-    }
-  ]);
-  
   // Canvas pan and zoom state
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: .8 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPanPos, setStartPanPos] = useState({ x: 0, y: 0 });
+  const canvasRef = useRef(null);
+  
+  // Add state for undo/redo capabilities
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  // Initialize the graph state from the initial workflow steps
+  const [workflowGraph, setWorkflowGraph] = useState(() => 
+    Graph.fromWorkflowSteps(INITIAL_WORKFLOW_STEPS)
+  );
+
+  // State for selection and UI interactions
+  const [activeTab, setActiveTab] = useState('flow');
   const [showNodeMenu, setShowNodeMenu] = useState(false);
-  const [selectedNodeIndex, setSelectedNodeIndex] = useState(null);
-  // Add a separate state for tracking which add button menu is open
-  const [activeAddButtonIndex, setActiveAddButtonIndex] = useState(null);
-  // Add state for tracking which branch button is active (nodeIndex and branchId)
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [activeAddButtonNodeId, setActiveAddButtonNodeId] = useState(null);
   const [activeBranchButton, setActiveBranchButton] = useState(null);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [highlightedConnection, setHighlightedConnection] = useState(null);
-  // Add state to track original position when dragging
   const [dragStartPosition, setDragStartPosition] = useState(null);
   
+  // Convert graph nodes to array for rendering compatibility
+  const workflowSteps = useMemo(() => {
+    return workflowGraph.getAllNodes();
+  }, [workflowGraph]);
+
+  // Find the currently selected node
+  const selectedNode = useMemo(() => {
+    return selectedNodeId ? workflowGraph.getNode(selectedNodeId) : null;
+  }, [workflowGraph, selectedNodeId]);
+
   // Configurable offsets
-  const [buttonYOffset] = useState(0); // Default vertical offset for "+" buttons
-  const [edgeInputYOffset] = useState(0); // Offset for input edge connections (top of node)
-  const [edgeOutputYOffset] = useState(40); // Offset for output edge connections (bottom of node)
+  const [buttonYOffset] = useState(BUTTON_Y_OFFSET);
+  const [edgeInputYOffset] = useState(EDGE_INPUT_Y_OFFSET);
+  const [edgeOutputYOffset] = useState(EDGE_OUTPUT_Y_OFFSET);
   
   // Helper function to calculate branch endpoints for ifelse and splitflow nodes
   const getBranchEndpoint = useCallback((node, branchId) => {
-    const startX = node.position.x + (NODE_WIDTH / 2);
+    const startX = node.position.x + (DEFAULT_NODE_WIDTH / 2);
     const startY = node.position.y + (node.height || DEFAULT_NODE_HEIGHT);
     
-    if (node.type === 'ifelse') {
+    if (node.type === NODE_TYPES.IFELSE) {
       if (branchId === 'yes') {
-        return { x: node.position.x - 150 + (NODE_WIDTH / 2), y: startY + 100 };
+        return { x: node.position.x - 150 + (DEFAULT_NODE_WIDTH / 2), y: startY + 100 };
       } else {
-        return { x: node.position.x + 150 + (NODE_WIDTH / 2), y: startY + 100 };
+        return { x: node.position.x + 150 + (DEFAULT_NODE_WIDTH / 2), y: startY + 100 };
       }
-    } else if (node.type === 'splitflow') {
+    } else if (node.type === NODE_TYPES.SPLITFLOW) {
       // Similar logic for splitflow branches
       const branches = pluginRegistry.getNodeType('splitflow').getBranches(node);
       const index = branches.findIndex(b => b.id === branchId);
       
       if (branchId === 'other' || index === branches.length - 1) {
-        return { x: node.position.x + 150 + (NODE_WIDTH / 2), y: startY + 100 };
+        return { x: node.position.x + 150 + (DEFAULT_NODE_WIDTH / 2), y: startY + 100 };
       } else {
-        return { x: node.position.x - 150 + (NODE_WIDTH / 2), y: startY + 100 };
+        return { x: node.position.x - 150 + (DEFAULT_NODE_WIDTH / 2), y: startY + 100 };
       }
     }
     
     return { x: startX, y: startY };
-  }, [NODE_WIDTH]);
+  }, []);
   
   // Auto-hide menu timer
   const menuHideTimerRef = useRef(null);
@@ -792,26 +766,33 @@ const AutomationWorkflow = () => {
   }, []);
   
   const startMenuHideTimer = useCallback(() => {
-    console.log('Starting menu hide timer...');
     clearMenuHideTimer();
     menuHideTimerRef.current = setTimeout(() => {
-      // Removed console log
       if (!isMouseOverMenuOrButton) {
-        setActiveAddButtonIndex(null);
+        setActiveAddButtonNodeId(null);
       }
     }, AUTO_HIDE_TIMEOUT);
-  }, [clearMenuHideTimer, isMouseOverMenuOrButton, setActiveAddButtonIndex]);
+  }, [clearMenuHideTimer, isMouseOverMenuOrButton]);
   
   // Handler for node height changes
-  const handleNodeHeightChange = (id, height) => {
-    setWorkflowSteps(prev =>
-      prev.map(step => step.id === id ? { ...step, height } : step)
-    );
-  };
+  const handleNodeHeightChange = useCallback((id, height) => {
+    setWorkflowGraph(prevGraph => {
+      const newGraph = new Graph();
+      
+      // Copy all nodes and edges
+      prevGraph.getAllNodes().forEach(node => {
+        newGraph.addNode(node.id === id ? { ...node, height } : node);
+      });
+      
+      prevGraph.getAllEdges().forEach(edge => {
+        newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+      });
+      
+      return newGraph;
+    });
+  }, []);
   
-  // Note: We've removed the unused adjustment functions
-  
-  // Mouse over menu/button tracking functions - memoized to prevent recreating functions on each render
+  // Mouse over menu/button tracking functions
   const handleMenuMouseEnter = useCallback(() => {
     clearMenuHideTimer();
     setIsMouseOverMenuOrButton(true);
@@ -819,7 +800,6 @@ const AutomationWorkflow = () => {
   
   const handleMenuMouseLeave = useCallback(() => {
     setIsMouseOverMenuOrButton(false);
-    // startMenuHideTimer() commented out but left for reference
   }, []);
   
   // Close menus when clicking outside or on another node
@@ -838,15 +818,15 @@ const AutomationWorkflow = () => {
       }
       
       // Handle add button menu closing
-      if (activeAddButtonIndex !== null) {
+      if (activeAddButtonNodeId !== null) {
         // Close menu when clicking on any node that's not an add button
         if (isClickingNode) {
-          setActiveAddButtonIndex(null);
+          setActiveAddButtonNodeId(null);
           clearMenuHideTimer();
         }
         // Or when clicking anywhere else (except the menu or add button)
         else if (!isClickingMenu && !isClickingAddButton) {
-          setActiveAddButtonIndex(null);
+          setActiveAddButtonNodeId(null);
           clearMenuHideTimer();
         }
       }
@@ -857,18 +837,18 @@ const AutomationWorkflow = () => {
       document.removeEventListener('mousedown', handleClickOutside);
       clearMenuHideTimer();
     };
-  }, [showNodeMenu, activeAddButtonIndex, clearMenuHideTimer]);
+  }, [showNodeMenu, activeAddButtonNodeId, clearMenuHideTimer]);
   
   // Start auto-hide timer when menu is opened
   useEffect(() => {
-    if (activeAddButtonIndex !== null && !isMouseOverMenuOrButton) {
+    if (activeAddButtonNodeId !== null && !isMouseOverMenuOrButton) {
       startMenuHideTimer();
     } else {
       clearMenuHideTimer();
     }
     
     return () => clearMenuHideTimer();
-  }, [activeAddButtonIndex, isMouseOverMenuOrButton, clearMenuHideTimer, startMenuHideTimer]);
+  }, [activeAddButtonNodeId, isMouseOverMenuOrButton, clearMenuHideTimer, startMenuHideTimer]);
   
   // Add a ref to track if we just clicked a node
   const justClickedNodeRef = useRef(false);
@@ -892,7 +872,7 @@ const AutomationWorkflow = () => {
       // Deselect nodes only on direct canvas background clicks
       // and if we didn't just click a node
       if (!justClickedNodeRef.current) {
-        setSelectedNodeIndex(null);
+        setSelectedNodeId(null);
       }
       
       e.preventDefault();
@@ -1019,10 +999,12 @@ const AutomationWorkflow = () => {
   // Helper functions
   const generateUniqueId = () => `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  const createNewNode = (nodeType, position, overrides = {}) => {
+  // Create a new node with the specified properties
+  const createNewNode = useCallback((nodeType, position, overrides = {}) => {
     // Get any initial properties from the node plugin
     const nodePlugin = pluginRegistry.getNodeType(nodeType);
     const initialProps = nodePlugin.getInitialProperties ? nodePlugin.getInitialProperties() : {};
+    
     return {
       id: generateUniqueId(),
       type: nodeType,
@@ -1030,96 +1012,140 @@ const AutomationWorkflow = () => {
       height: DEFAULT_NODE_HEIGHT,
       isNew: true,
       contextMenuConfig: { position: 'right', offsetX: 10, offsetY: 0 },
-      branchConnections: nodePlugin.hasMultipleBranches() ? {} : undefined,
-      outgoingConnections: {}, // Add empty outgoing connections property
+      title: getDefaultTitle(nodeType),
+      subtitle: getDefaultSubtitle(nodeType),
       ...initialProps,
       ...overrides
     };
-  };
+  }, []);
 
   // Helper functions for default node properties
-  const getDefaultTitle = (nodeType) => {
+  const getDefaultTitle = useCallback((nodeType) => {
     switch (nodeType) {
-      case 'trigger':
+      case NODE_TYPES.TRIGGER:
         return 'New Trigger';
-      case 'control':
+      case NODE_TYPES.CONTROL:
         return 'New Control';
-      case 'action':
+      case NODE_TYPES.ACTION:
         return 'New Action';
-      case 'ifelse':
+      case NODE_TYPES.IFELSE:
         return 'New If/Else';
-      case 'splitflow':
+      case NODE_TYPES.SPLITFLOW:
         return 'New Split Flow';
       default:
         return 'New Step';
     }
-  };
+  }, []);
 
-  const getDefaultSubtitle = (nodeType) => {
+  const getDefaultSubtitle = useCallback((nodeType) => {
     switch (nodeType) {
-      case 'trigger':
+      case NODE_TYPES.TRIGGER:
         return 'Configure this trigger';
-      case 'control':
+      case NODE_TYPES.CONTROL:
         return 'Configure this control';
-      case 'action':
+      case NODE_TYPES.ACTION:
         return 'Configure this action';
-      case 'ifelse':
+      case NODE_TYPES.IFELSE:
         return 'Configure condition';
-      case 'splitflow':
+      case NODE_TYPES.SPLITFLOW:
         return 'Configure split conditions';
       default:
         return 'Configure properties';
     }
-  };
+  }, []);
 
   // Handle adding a new step
-  const handleAddStep = useCallback((index, nodeType) => {
-    const sourceNode = workflowSteps[index];
+  const handleAddStep = useCallback((nodeId, nodeType, connectionType = CONNECTION_TYPES.DEFAULT, branchId = null) => {
+    const sourceNode = workflowGraph.getNode(nodeId);
+    if (!sourceNode) return;
     
     // Calculate position for new node
-    const newPos = {
-      x: sourceNode.position.x,
-      y: sourceNode.position.y + 175
-    };
+    let newPos;
+    
+    if (connectionType === CONNECTION_TYPES.BRANCH && branchId) {
+      // For branch connections, use the branch endpoint position
+      const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
+      newPos = {
+        x: branchEndpoint.x - (DEFAULT_NODE_WIDTH / 2), // Adjust to place node centered on endpoint
+        y: branchEndpoint.y + 50 // Place node below the endpoint
+      };
+    } else {
+      // For standard connections, place new node below the source node
+      newPos = {
+        x: sourceNode.position.x,
+        y: sourceNode.position.y + 175
+      };
+    }
     
     // Create new node
-    const newNodeId = generateUniqueId();
-    const newNode = createNewNode(nodeType, newPos, {
-      id: newNodeId,
-      title: getDefaultTitle(nodeType),
-      subtitle: getDefaultSubtitle(nodeType)
-    });
+    const newNode = createNewNode(nodeType, newPos);
     
-    // Find any current target nodes of the source node
-    let targetNodeId = null;
-    if (sourceNode.outgoingConnections?.default?.targetNodeId) {
-      targetNodeId = sourceNode.outgoingConnections.default.targetNodeId;
-    }
-    
-    // Set up the source node's outgoing connection to point to the new node
-    const updatedSourceNode = {
-      ...sourceNode,
-      outgoingConnections: {
-        ...sourceNode.outgoingConnections,
-        default: { targetNodeId: newNodeId }
-      }
-    };
-    
-    // Set up the new node's outgoing connection to point to any previous target
-    if (targetNodeId) {
-      newNode.outgoingConnections.default = { targetNodeId };
-    }
-    
-    // Update the workflow steps
-    const updatedSteps = workflowSteps.map(step => 
-      step.id === sourceNode.id ? updatedSourceNode : step
+    // Create and execute the add node command
+    const addNodeCommand = new AddNodeCommand(
+      workflowGraph, 
+      newNode,
+      sourceNode.id,
+      connectionType,
+      branchId
     );
     
-    setWorkflowSteps([...updatedSteps, newNode]);
+    commandManager.executeCommand({
+      execute: () => {
+        addNodeCommand.execute();
+        // Update the graph state after command execution
+        setWorkflowGraph(new Graph());
+        setWorkflowGraph(prevGraph => {
+          const newGraph = new Graph();
+          
+          // Copy all nodes from the updated graph
+          addNodeCommand.graph.getAllNodes().forEach(node => {
+            newGraph.addNode({ ...node });
+          });
+          
+          // Copy all edges from the updated graph
+          addNodeCommand.graph.getAllEdges().forEach(edge => {
+            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+          });
+          
+          return newGraph;
+        });
+        
+        // Track the new node for animation
+        setAnimatingNodes(prev => [...prev, newNode.id]);
+        setTimeout(() => {
+          setAnimatingNodes(prev => prev.filter(id => id !== newNode.id));
+        }, 300);
+        
+        return true;
+      },
+      undo: () => {
+        addNodeCommand.undo();
+        // Update the graph state after undo
+        setWorkflowGraph(new Graph());
+        setWorkflowGraph(prevGraph => {
+          const newGraph = new Graph();
+          
+          // Copy all nodes from the updated graph
+          addNodeCommand.graph.getAllNodes().forEach(node => {
+            newGraph.addNode({ ...node });
+          });
+          
+          // Copy all edges from the updated graph
+          addNodeCommand.graph.getAllEdges().forEach(edge => {
+            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+          });
+          
+          return newGraph;
+        });
+        
+        return true;
+      }
+    });
     
-    // ...rest of add node logic...
-  }, [workflowSteps, createNewNode, getDefaultTitle, getDefaultSubtitle]);
-
+    // Close any open menus
+    setActiveAddButtonNodeId(null);
+    setActiveBranchButton(null);
+  }, [workflowGraph, createNewNode, getBranchEndpoint]);
 
   // Initialize command manager and listen for changes
   useEffect(() => {
@@ -1139,42 +1165,87 @@ const AutomationWorkflow = () => {
       commandManager.removeListener(handleCommandStateChange);
     };
   }, []);
-  
-  // Handle undo action
+
+  // Handle undo and redo
   const handleUndo = () => {
     commandManager.undo();
   };
-  
-  // Handle redo action
+
   const handleRedo = () => {
     commandManager.redo();
   };
   
   // Handle delete node action
-  const handleDeleteNode = (nodeIndex) => {
-    if (nodeIndex === null || nodeIndex < 0 || nodeIndex >= workflowSteps.length) return;
+  const handleDeleteNode = useCallback((nodeId) => {
+    if (!nodeId) return;
     
     // Create and execute delete command
-    const deleteCommand = new DeleteNodeCommand(
-      workflowSteps,
-      setWorkflowSteps,
-      setSelectedNodeIndex,
-      nodeIndex
-    );
+    const deleteNodeCommand = new DeleteNodeCommand(workflowGraph, nodeId);
     
-    commandManager.executeCommand(deleteCommand);
-  };
-  
+    commandManager.executeCommand({
+      execute: () => {
+        deleteNodeCommand.execute();
+        
+        // Update graph state after command execution
+        setWorkflowGraph(new Graph());
+        setWorkflowGraph(prevGraph => {
+          const newGraph = new Graph();
+          
+          // Copy all nodes from the updated graph
+          deleteNodeCommand.graph.getAllNodes().forEach(node => {
+            newGraph.addNode({ ...node });
+          });
+          
+          // Copy all edges from the updated graph
+          deleteNodeCommand.graph.getAllEdges().forEach(edge => {
+            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+          });
+          
+          return newGraph;
+        });
+        
+        // Clear selected node if it was deleted
+        if (selectedNodeId === nodeId) {
+          setSelectedNodeId(null);
+        }
+        
+        return true;
+      },
+      undo: () => {
+        deleteNodeCommand.undo();
+        
+        // Update graph state after undo
+        setWorkflowGraph(new Graph());
+        setWorkflowGraph(prevGraph => {
+          const newGraph = new Graph();
+          
+          // Copy all nodes from the updated graph
+          deleteNodeCommand.graph.getAllNodes().forEach(node => {
+            newGraph.addNode({ ...node });
+          });
+          
+          // Copy all edges from the updated graph
+          deleteNodeCommand.graph.getAllEdges().forEach(edge => {
+            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+          });
+          
+          return newGraph;
+        });
+        
+        return true;
+      }
+    });
+  }, [workflowGraph, selectedNodeId]);
+
   // Handle node click for editing with improved logic
-  const handleStepClick = (id, action) => {
-    const index = workflowSteps.findIndex(step => step.id === id);
-    if (index < 0) return;
+  const handleStepClick = useCallback((id, action) => {
+    if (!id) return;
     
     // If an action is provided, handle the context menu action
     if (action) {
       switch (action) {
         case 'delete':
-          handleDeleteNode(index);
+          handleDeleteNode(id);
           return;
         case 'duplicate':
           // Duplicate functionality could be added here
@@ -1189,735 +1260,609 @@ const AutomationWorkflow = () => {
     }
     
     // Always select the node on click (no toggling anymore)
-    setSelectedNodeIndex(index);
+    setSelectedNodeId(id);
     justClickedNodeRef.current = true;
     
     // Clear this flag after a short delay
     setTimeout(() => {
       justClickedNodeRef.current = false;
     }, 200);
-  };
+  }, [handleDeleteNode]);
   
   // Handle node drag with grid snapping
-  const handleNodeDrag = (id, x, y) => {
-    // This function receives client coordinates adjusted by the drag offset
-    setWorkflowSteps(prev =>
-      prev.map(step => {
-        if (step.id === id) {
-          // Apply grid snapping if enabled
-          let newX = x;
-          let newY = y;
-          
-          if (snapToGrid) {
-            newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
-            newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
-          }
-          
-          // Just use the calculated position - no need for additional adjustments
-          return { ...step, position: { x: newX, y: newY } };
+  const handleNodeDrag = useCallback((id, x, y) => {
+    // Apply grid snapping if enabled
+    let newX = x;
+    let newY = y;
+    
+    if (snapToGrid) {
+      newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
+      newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
+    }
+    
+    // Update the node position in the graph
+    setWorkflowGraph(prevGraph => {
+      const newGraph = new Graph();
+      
+      // Copy all nodes with updated position for the dragged node
+      prevGraph.getAllNodes().forEach(node => {
+        if (node.id === id) {
+          newGraph.addNode({ ...node, position: { x: newX, y: newY } });
+        } else {
+          newGraph.addNode({ ...node });
         }
-        return step;
-      })
-    );
-  };
+      });
+      
+      // Copy all edges
+      prevGraph.getAllEdges().forEach(edge => {
+        newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+      });
+      
+      return newGraph;
+    });
+  }, [snapToGrid]);
+  
+  // Handle node drag start
+  const handleNodeDragStart = useCallback((id, position) => {
+    // Save the start position for the move command
+    setDragStartPosition({ ...position });
+  }, []);
   
   // Handle node drag end
-  const handleNodeDragEnd = (id) => {
-    // Get the node that was dragged
-    const index = workflowSteps.findIndex(step => step.id === id);
-    if (index < 0 || !dragStartPosition) return;
-
-    const node = workflowSteps[index];
+  const handleNodeDragEnd = useCallback((id) => {
+    if (!dragStartPosition) return;
+    
+    const node = workflowGraph.getNode(id);
+    if (!node) return;
+    
     const currentPosition = node.position;
     
     // Only create a command if the position actually changed
     if (dragStartPosition.x !== currentPosition.x || dragStartPosition.y !== currentPosition.y) {
       // Create and execute a move command
-      const moveCommand = new MoveNodeCommand(
-        setWorkflowSteps,
-        null, // No need to update selection for move operations
+      const moveNodeCommand = new MoveNodeCommand(
+        workflowGraph,
         id,
-        dragStartPosition,
-        currentPosition
+        { ...dragStartPosition },
+        { ...currentPosition }
       );
       
-      commandManager.executeCommand(moveCommand);
+      commandManager.executeCommand({
+        execute: () => {
+          moveNodeCommand.execute();
+          
+          // Update graph state after command execution
+          setWorkflowGraph(new Graph());
+          setWorkflowGraph(prevGraph => {
+            const newGraph = new Graph();
+            
+            // Copy all nodes from the updated graph
+            moveNodeCommand.graph.getAllNodes().forEach(node => {
+              newGraph.addNode({ ...node });
+            });
+            
+            // Copy all edges from the updated graph
+            moveNodeCommand.graph.getAllEdges().forEach(edge => {
+              newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+            });
+            
+            return newGraph;
+          });
+          
+          return true;
+        },
+        undo: () => {
+          moveNodeCommand.undo();
+          
+          // Update graph state after undo
+          setWorkflowGraph(new Graph());
+          setWorkflowGraph(prevGraph => {
+            const newGraph = new Graph();
+            
+            // Copy all nodes from the updated graph
+            moveNodeCommand.graph.getAllNodes().forEach(node => {
+              newGraph.addNode({ ...node });
+            });
+            
+            // Copy all edges from the updated graph
+            moveNodeCommand.graph.getAllEdges().forEach(edge => {
+              newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+            });
+            
+            return newGraph;
+          });
+          
+          return true;
+        }
+      });
     }
     
     // Reset the start position
     setDragStartPosition(null);
+  }, [workflowGraph, dragStartPosition]);
+  
+  // Handle node property updates
+  const handleUpdateNodeProperty = useCallback((nodeId, propertyId, value) => {
+    if (!nodeId) return;
     
-    // Keep this node selected
-    if (index >= 0) {
-      setSelectedNodeIndex(index);
-    }
-  };
-  
-  // Handle update node fields with optimized implementations
-  const handleUpdateNodeTitle = (nodeIndex, newTitle) => {
-    setWorkflowSteps(prevSteps => {
-      // Only create a new array if we're actually changing something
-      if (prevSteps[nodeIndex].title === newTitle) return prevSteps;
-      
-      const newSteps = [...prevSteps];
-      newSteps[nodeIndex] = {
-        ...newSteps[nodeIndex],
-        title: newTitle
-      };
-      return newSteps;
-    });
-  };
-  
-  const handleUpdateNodeSubtitle = (nodeIndex, newSubtitle) => {
-    setWorkflowSteps(prevSteps => {
-      // Only create a new array if we're actually changing something
-      if (prevSteps[nodeIndex].subtitle === newSubtitle) return prevSteps;
-      
-      const newSteps = [...prevSteps];
-      newSteps[nodeIndex] = {
-        ...newSteps[nodeIndex],
-        subtitle: newSubtitle
-      };
-      return newSteps;
-    });
-  };
-  
-  // Generic node update handler for the dynamic properties panel
-  const handleUpdateNodeProperty = (nodeId, propertyId, value) => {
-    setWorkflowSteps(prevSteps => {
-      const nodeIndex = prevSteps.findIndex(step => step.id === nodeId);
-      if (nodeIndex === -1) return prevSteps;
-      
-      // Only create a new array if we're actually changing something
-      if (prevSteps[nodeIndex][propertyId] === value) return prevSteps;
-      
-      const newSteps = [...prevSteps];
-      newSteps[nodeIndex] = {
-        ...newSteps[nodeIndex],
-        [propertyId]: value
-      };
-      return newSteps;
-    });
-  };
-  
-  // Handle direct add node from button menu (without opening separate menu)
-  const handleAddNodeFromButton = useCallback((index, nodeType) => {
-    handleAddStep(index, nodeType);
-  }, [handleAddStep]);
-  
-  // Handle showing the branch menu - wrap in useCallback to avoid exhaustive-deps warning
-  const handleShowBranchAddMenu = useCallback((nodeIndex, branchId, e) => {
-    setActiveBranchButton({ nodeIndex, branchId });
-    e.stopPropagation();
-    clearMenuHideTimer();
-  }, [clearMenuHideTimer]);
-  
-  // Handle adding a node from a branch endpoint
-  const handleAddNodeFromBranch = useCallback((nodeIndex, branchId, nodeType) => {
-    const sourceNode = workflowSteps[nodeIndex];
-    if (!sourceNode) return;
+    // Get the current node
+    const node = workflowGraph.getNode(nodeId);
+    if (!node) return;
     
-    // Get endpoint position for branch
-    const endpoint = getBranchEndpoint(sourceNode, branchId);
-    
-    // Create new node with a unique ID
-    const newNodeId = generateUniqueId();
-    const newNode = createNewNode(
-      nodeType,
-      { x: endpoint.x - (NODE_WIDTH / 2), y: endpoint.y + 50 },
-      { id: newNodeId }
+    // Create a command to update the property
+    const updateCommand = new UpdateNodeCommand(
+      workflowGraph,
+      nodeId,
+      {
+        properties: {
+          ...node.properties,
+          [propertyId]: value
+        }
+      }
     );
     
-    // Update the source node's branch connections
-    const updatedSourceNode = {
-      ...sourceNode,
-      branchConnections: {
-        ...sourceNode.branchConnections,
-        [branchId]: { targetNodeId: newNodeId }
+    commandManager.executeCommand({
+      execute: () => {
+        updateCommand.execute();
+        
+        // Update graph state after command execution
+        setWorkflowGraph(new Graph());
+        setWorkflowGraph(prevGraph => {
+          const newGraph = new Graph();
+          
+          // Copy all nodes from the updated graph
+          updateCommand.graph.getAllNodes().forEach(node => {
+            newGraph.addNode({ ...node });
+          });
+          
+          // Copy all edges from the updated graph
+          updateCommand.graph.getAllEdges().forEach(edge => {
+            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+          });
+          
+          return newGraph;
+        });
+        
+        return true;
+      },
+      undo: () => {
+        updateCommand.undo();
+        
+        // Update graph state after undo
+        setWorkflowGraph(new Graph());
+        setWorkflowGraph(prevGraph => {
+          const newGraph = new Graph();
+          
+          // Copy all nodes from the updated graph
+          updateCommand.graph.getAllNodes().forEach(node => {
+            newGraph.addNode({ ...node });
+          });
+          
+          // Copy all edges from the updated graph
+          updateCommand.graph.getAllEdges().forEach(edge => {
+            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+          });
+          
+          return newGraph;
+        });
+        
+        return true;
       }
+    });
+  }, [workflowGraph]);
+  
+  // Handle showing the add node menu
+  const handleShowAddMenu = useCallback((nodeId, e) => {
+    // Don't show menu if node doesn't exist
+    if (!workflowGraph.getNode(nodeId)) return;
+    
+    // Toggle the active button - if this button is already active, close it
+    setActiveAddButtonNodeId(prevId => prevId === nodeId ? null : nodeId);
+    
+    // If opening, reset any active branch buttons
+    if (activeAddButtonNodeId !== nodeId) {
+      setActiveBranchButton(null);
+    }
+    
+    e.stopPropagation();
+  }, [workflowGraph, activeAddButtonNodeId]);
+  
+  // Handle showing the branch endpoint menu
+  const handleShowBranchEndpointMenu = useCallback((nodeId, branchId, e) => {
+    // Don't show menu if node doesn't exist
+    if (!workflowGraph.getNode(nodeId)) return;
+    
+    // Toggle the active branch button
+    setActiveBranchButton(prev => {
+      if (prev && prev.nodeId === nodeId && prev.branchId === branchId) {
+        return null;
+      }
+      return { nodeId, branchId };
+    });
+    
+    // If opening, reset any active add buttons
+    if (!activeBranchButton || activeBranchButton.nodeId !== nodeId || activeBranchButton.branchId !== branchId) {
+      setActiveAddButtonNodeId(null);
+    }
+    
+    e.stopPropagation();
+  }, [workflowGraph, activeBranchButton]);
+  
+  // This function calculates the connection endpoints
+  const calculateConnectionPoints = useCallback((sourceNode, targetNode) => {
+    if (!sourceNode || !targetNode) return { startPos: null, endPos: null };
+    
+    const sourceX = sourceNode.position.x + (DEFAULT_NODE_WIDTH / 2);
+    const sourceY = sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + edgeOutputYOffset;
+    
+    const targetX = targetNode.position.x + (DEFAULT_NODE_WIDTH / 2);
+    const targetY = targetNode.position.y + edgeInputYOffset;
+    
+    return {
+      startPos: { x: sourceX, y: sourceY },
+      endPos: { x: targetX, y: targetY }
+    };
+  }, [edgeInputYOffset, edgeOutputYOffset]);
+  
+  // Function to calculate branch connection points
+  const calculateBranchConnectionPoints = useCallback((sourceNode, targetNode, branchId) => {
+    if (!sourceNode || !targetNode || !branchId) return { startPos: null, endPos: null };
+    
+    const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
+    
+    const targetX = targetNode.position.x + (DEFAULT_NODE_WIDTH / 2);
+    const targetY = targetNode.position.y + edgeInputYOffset;
+    
+    return {
+      startPos: branchEndpoint,
+      endPos: { x: targetX, y: targetY }
+    };
+  }, [getBranchEndpoint, edgeInputYOffset]);
+
+  // Render all connector lines between nodes
+  const renderConnections = useCallback(() => {
+    const connectors = [];
+    
+    // Render standard connections
+    workflowGraph.getAllEdges().forEach(edge => {
+      const sourceNode = workflowGraph.getNode(edge.sourceId);
+      const targetNode = workflowGraph.getNode(edge.targetId);
+      
+      if (!sourceNode || !targetNode) return;
+      
+      let connectionPoints;
+      
+      if (edge.type === CONNECTION_TYPES.DEFAULT) {
+        connectionPoints = calculateConnectionPoints(sourceNode, targetNode);
+      } else if (edge.type === CONNECTION_TYPES.BRANCH) {
+        connectionPoints = calculateBranchConnectionPoints(sourceNode, targetNode, edge.label);
+      }
+      
+      if (connectionPoints && connectionPoints.startPos && connectionPoints.endPos) {
+        connectors.push(
+          <ConnectorLine 
+            key={`${edge.sourceId}-${edge.targetId}-${edge.type}-${edge.label || 'default'}`}
+            startPos={connectionPoints.startPos} 
+            endPos={connectionPoints.endPos}
+            isHighlighted={false}
+            label={edge.type === CONNECTION_TYPES.BRANCH ? edge.label : null}
+          />
+        );
+      }
+    });
+    
+    return connectors;
+  }, [workflowGraph, calculateConnectionPoints, calculateBranchConnectionPoints]);
+  
+  // Render add node buttons for each node
+  const renderAddNodeButtons = useCallback(() => {
+    const buttons = [];
+    
+    // For each node, add a button at its bottom
+    workflowGraph.getAllNodes().forEach((node) => {
+      // Add button for standard connection (unless it's already connected)
+      const defaultOutgoingEdge = workflowGraph.getDefaultOutgoingEdge(node.id);
+      
+      if (!defaultOutgoingEdge) {
+        const buttonPosition = {
+          x: node.position.x,
+          y: node.position.y + (node.height || DEFAULT_NODE_HEIGHT) + buttonYOffset
+        };
+        
+        buttons.push(
+          <AddNodeButton
+            key={`add-button-${node.id}`}
+            position={buttonPosition}
+            nodeWidth={DEFAULT_NODE_WIDTH}
+            buttonSize={BUTTON_SIZE}
+            onAdd={(e) => handleShowAddMenu(node.id, e)}
+            isHighlighted={activeAddButtonNodeId === node.id}
+            onMouseEnter={() => {}} // No action needed
+            onMouseLeave={() => {}} // No action needed
+            showMenu={activeAddButtonNodeId === node.id}
+            sourceNodeId={node.id}
+            sourceType="standard"
+          />
+        );
+      }
+      
+      // Add branch endpoint buttons for IF/ELSE and SPLIT FLOW nodes
+      if (node.type === NODE_TYPES.IFELSE) {
+        // Add yes/no branch endpoints
+        const branchIds = ['yes', 'no'];
+        
+        branchIds.forEach(branchId => {
+          // Check if this branch already has a connection
+          const hasBranchConnection = workflowGraph.getBranchOutgoingEdges(node.id)
+            .some(edge => edge.label === branchId);
+          
+          if (!hasBranchConnection) {
+            const branchEndpoint = getBranchEndpoint(node, branchId);
+            
+            buttons.push(
+              <BranchEndpointButton
+                key={`branch-endpoint-${node.id}-${branchId}`}
+                position={branchEndpoint}
+                buttonSize={BUTTON_SIZE}
+                onAdd={(e) => handleShowBranchEndpointMenu(node.id, branchId, e)}
+                isHighlighted={
+                  activeBranchButton && 
+                  activeBranchButton.nodeId === node.id && 
+                  activeBranchButton.branchId === branchId
+                }
+                onMouseEnter={() => {}} // No action needed
+                onMouseLeave={() => {}} // No action needed
+                showMenu={
+                  activeBranchButton && 
+                  activeBranchButton.nodeId === node.id && 
+                  activeBranchButton.branchId === branchId
+                }
+                sourceNodeId={node.id}
+                branchId={branchId}
+              />
+            );
+          }
+        });
+      } else if (node.type === NODE_TYPES.SPLITFLOW) {
+        // Get branch options from plugin
+        const branches = pluginRegistry.getNodeType('splitflow').getBranches(node);
+        
+        branches.forEach(branch => {
+          // Check if this branch already has a connection
+          const hasBranchConnection = workflowGraph.getBranchOutgoingEdges(node.id)
+            .some(edge => edge.label === branch.id);
+          
+          if (!hasBranchConnection) {
+            const branchEndpoint = getBranchEndpoint(node, branch.id);
+            
+            buttons.push(
+              <BranchEndpointButton
+                key={`branch-endpoint-${node.id}-${branch.id}`}
+                position={branchEndpoint}
+                buttonSize={BUTTON_SIZE}
+                onAdd={(e) => handleShowBranchEndpointMenu(node.id, branch.id, e)}
+                isHighlighted={
+                  activeBranchButton && 
+                  activeBranchButton.nodeId === node.id && 
+                  activeBranchButton.branchId === branch.id
+                }
+                onMouseEnter={() => {}} // No action needed
+                onMouseLeave={() => {}} // No action needed
+                showMenu={
+                  activeBranchButton && 
+                  activeBranchButton.nodeId === node.id && 
+                  activeBranchButton.branchId === branch.id
+                }
+                sourceNodeId={node.id}
+                branchId={branch.id}
+              />
+            );
+          }
+        });
+      }
+    });
+    
+    return buttons;
+  }, [
+    workflowGraph, 
+    activeAddButtonNodeId, 
+    activeBranchButton, 
+    handleShowAddMenu, 
+    handleShowBranchEndpointMenu, 
+    getBranchEndpoint, 
+    buttonYOffset
+  ]);
+  
+  // Render the add node menu when active
+  const renderActiveAddNodeMenu = useCallback(() => {
+    if (!activeAddButtonNodeId) return null;
+    
+    const sourceNode = workflowGraph.getNode(activeAddButtonNodeId);
+    if (!sourceNode) return null;
+    
+    const menuPosition = {
+      x: sourceNode.position.x + (DEFAULT_NODE_WIDTH / 2),
+      y: sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + buttonYOffset + BUTTON_SIZE + 10
     };
     
-    // Update the workflow steps
-    const updatedSteps = workflowSteps.map(step => 
-      step.id === sourceNode.id ? updatedSourceNode : step
-    );
-    
-    setWorkflowSteps([...updatedSteps, newNode]);
-    
-    // Reset branch button
-    setActiveBranchButton(null);
-    
-    // Auto-select the new node after a delay
-    setTimeout(() => {
-      setAnimatingNodes(prev => prev.filter(id => id !== newNode.id));
-    }, 300);
-  }, [
-    workflowSteps,
-    getBranchEndpoint,
-    NODE_WIDTH,
-    createNewNode
-  ]);
-
-  // Handle showing the add node menu (now using dedicated state)
-  const handleShowAddMenu = (index, e) => {
-    // Just toggle the active add button index
-    if (activeAddButtonIndex === index) {
-      setActiveAddButtonIndex(null);
-      clearMenuHideTimer();
-    } else {
-      // Close any other open menu first
-      setActiveAddButtonIndex(null);
-      clearMenuHideTimer();
-      
-      // Small delay to ensure previous menu is closed
-      setTimeout(() => {
-        setActiveAddButtonIndex(index);
-        startMenuHideTimer(); // Start timer when opening menu
-      }, 10);
-    }
-    e.stopPropagation();
-  };
-  
-  // Portal for rendering the add step menu outside the transform container
-  const renderMenuPortal = useCallback(() => {
-    // Handle regular add node menu
-    if (activeAddButtonIndex !== null) {
-      const index = activeAddButtonIndex;
-      const step = workflowSteps[index];
-      
-      if (!step) return null;
-         
-      // Calculate position
-      const buttonPosition = index < workflowSteps.length - 1
-        ? {
-            x: step.position.x + ((workflowSteps[index + 1].position.x - step.position.x) / 2),
-            y: step.position.y + (step.height || 90) + ((workflowSteps[index + 1].position.y - (step.position.y + (step.height || 90))) / 2) + buttonYOffset
-          }
-        : {
-            x: workflowSteps[workflowSteps.length - 1].position.x,
-            y: workflowSteps[workflowSteps.length - 1].position.y + (workflowSteps[workflowSteps.length - 1].height || 90) + 50 + buttonYOffset
-          };
-      
-      // Calculate screen coordinates
-      const screenX = transform.x + (buttonPosition.x * transform.scale);
-      const screenY = transform.y + (buttonPosition.y * transform.scale + 180);
-      
-      // Position for the menu - properly scaled with the canvas
-      const menuX = screenX + ((NODE_WIDTH / 2) * transform.scale);
-      const menuY = screenY;
-      
-      return createPortal(
-        <div
-          className="node-menu"
-          style={{
-            position: 'fixed',
-            left: `${menuX}px`,
-            top: `${menuY}px`,
-            transform: `translate(${20 * transform.scale}px, -50%) scale(${transform.scale})`,
-            zIndex: 100000, // Very high z-index
-            pointerEvents: 'auto', // Ensure it can be clicked
-            transformOrigin: 'left center' // Set transform origin for better positioning
-          }}
-          onMouseEnter={handleMenuMouseEnter}
-          onMouseLeave={handleMenuMouseLeave}
-        >
-          <div className="bg-white rounded-lg shadow-xl p-3 border border-gray-200 animate-fadeIn" style={{ minWidth: '180px' }}>
-            <h3 className="font-medium text-gray-900 mb-2">Add step</h3>
-            <div className="space-y-1">
-              <button
-                className="flex items-center w-full p-2 hover:bg-blue-50 rounded-md text-left"
-                onClick={() => handleAddNodeFromButton(index, 'trigger')}
-                style={{ transformOrigin: 'left center' }}
-              >
-                <div className="p-1 rounded mr-2 bg-blue-100">
-                  <Zap className="w-4 h-4 text-blue-500" />
-                </div>
-                <span>Trigger</span>
-              </button>
-              <button
-                className="flex items-center w-full p-2 hover:bg-blue-50 rounded-md text-left"
-                onClick={() => handleAddNodeFromButton(index, 'control')}
-                style={{ transformOrigin: 'left center' }}
-              >
-                <div className="p-1 rounded mr-2 bg-purple-100">
-                  <Hexagon className="w-4 h-4 text-purple-500" />
-                </div>
-                <span>Control</span>
-              </button>
-              <button
-                className="flex items-center w-full p-2 hover:bg-blue-50 rounded-md text-left"
-                onClick={() => handleAddNodeFromButton(index, 'action')}
-                style={{ transformOrigin: 'left center' }}
-              >
-                <div className="p-1 rounded mr-2 bg-red-100">
-                  <Send className="w-4 h-4 text-red-500" />
-                </div>
-                <span>Action</span>
-              </button>
-              <button
-                className="flex items-center w-full p-2 hover:bg-blue-50 rounded-md text-left"
-                onClick={() => handleAddNodeFromButton(index, 'ifelse')}
-                style={{ transformOrigin: 'left center' }}
-              >
-                <div className="p-1 rounded mr-2 bg-indigo-100">
-                  <GitBranch className="w-4 h-4 text-indigo-500" />
-                </div>
-                <span>If/Else</span>
-              </button>
-              <button
-                className="flex items-center w-full p-2 hover:bg-blue-50 rounded-md text-left"
-                onClick={() => handleAddNodeFromButton(index, 'splitflow')}
-                style={{ transformOrigin: 'left center' }}
-              >
-                <div className="p-1 rounded mr-2 bg-green-100">
-                  <GitMerge className="w-4 h-4 text-green-500" />
-                </div>
-                <span>Split Flow</span>
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body // Render directly to body to avoid z-index issues
-      );
-    }
-    
-    // Handle branch add menus
-    if (activeBranchButton) {
-      const { nodeIndex, branchId } = activeBranchButton;
-      const step = workflowSteps[nodeIndex];
-      if (!step) return null;
-      
-      // Get branch details
-      const nodePlugin = pluginRegistry.getNodeType(step.type);
-      const branches = nodePlugin ? nodePlugin.getBranches(step) : [];
-      const branch = branches.find(b => b.id === branchId);
-      
-      // Get branch endpoint position
-      const endpoint = getBranchEndpoint(step, branchId);
-      
-      // Calculate screen coordinates
-      const screenX = transform.x + (endpoint.x * transform.scale);
-      const screenY = transform.y + (endpoint.y * transform.scale);
-      
-      return createPortal(
-        <div
-          className="branch-node-menu"
-          style={{
-            position: 'fixed',
-            left: `${screenX}px`,
-            top: `${screenY}px`,
-            transform: `translate(-50%, 20px) scale(${transform.scale})`,
-            zIndex: 100000,
-            pointerEvents: 'auto',
-            transformOrigin: 'center top'
-          }}
-          onMouseEnter={handleMenuMouseEnter}
-          onMouseLeave={handleMenuMouseLeave}
-        >
-          <div className="bg-white rounded-lg shadow-xl p-3 border border-gray-200 animate-fadeIn" style={{ minWidth: '200px' }}>
-            <h3 className="font-medium text-gray-900 mb-2">Add to {branch?.label || branchId} branch</h3>
-            <div className="space-y-1">
-              <button
-                className="flex items-center w-full p-2 hover:bg-blue-50 rounded-md text-left"
-                onClick={() => handleAddNodeFromBranch(nodeIndex, branchId, 'action')}
-                style={{ transformOrigin: 'left center' }}
-              >
-                <div className="p-1 rounded mr-2 bg-red-100">
-                  <Send className="w-4 h-4 text-red-500" />
-                </div>
-                <span>Action</span>
-              </button>
-              <button
-                className="flex items-center w-full p-2 hover:bg-blue-50 rounded-md text-left"
-                onClick={() => handleAddNodeFromBranch(nodeIndex, branchId, 'control')}
-                style={{ transformOrigin: 'left center' }}
-              >
-                <div className="p-1 rounded mr-2 bg-purple-100">
-                  <Hexagon className="w-4 h-4 text-purple-500" />
-                </div>
-                <span>Control</span>
-              </button>
-              <button
-                className="flex items-center w-full p-2 hover:bg-blue-50 rounded-md text-left"
-                onClick={() => handleAddNodeFromBranch(nodeIndex, branchId, 'ifelse')}
-                style={{ transformOrigin: 'left center' }}
-              >
-                <div className="p-1 rounded mr-2 bg-indigo-100">
-                  <GitBranch className="w-4 h-4 text-indigo-500" />
-                </div>
-                <span>If/Else</span>
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      );
-    }
-    
-    return null;
-  }, [
-    activeAddButtonIndex,
-    activeBranchButton,
-    workflowSteps,
-    buttonYOffset,
-    transform,
-    NODE_WIDTH,
-    handleMenuMouseEnter,
-    handleMenuMouseLeave,
-    handleAddNodeFromButton,
-    handleAddNodeFromBranch,
-    getBranchEndpoint
-  ]);
-  
-  // Update the rendering of connector lines to use the tree structure
-  const renderConnections = () => {
     return (
-      <g>
-        {/* Render standard connections */}
-        {workflowSteps.map(sourceNode => {
-          // Skip nodes without connections
-          if (!sourceNode.outgoingConnections?.default?.targetNodeId) return null;
-          
-          // Find the target node
-          const targetNodeId = sourceNode.outgoingConnections.default.targetNodeId;
-          const targetNode = workflowSteps.find(n => n.id === targetNodeId);
-          if (!targetNode) return null;
-          
-          return (
-            <ConnectorLine
-              key={`connector-${sourceNode.id}-${targetNodeId}`}
-              startPos={{
-                x: sourceNode.position.x + (NODE_WIDTH / 2),
-                y: sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + edgeOutputYOffset
-              }}
-              endPos={{
-                x: targetNode.position.x + (NODE_WIDTH / 2),
-                y: targetNode.position.y + edgeInputYOffset
-              }}
-              isHighlighted={selectedNodeIndex === workflowSteps.indexOf(sourceNode) || 
-                            selectedNodeIndex === workflowSteps.indexOf(targetNode)}
-            />
-          );
-        })}
-        
-        {/* Render branch connections */}
-        {workflowSteps.map(sourceNode => {
-          if (!sourceNode.branchConnections) return null;
-          
-          const nodePlugin = pluginRegistry.getNodeType(sourceNode.type);
-          if (!nodePlugin || !nodePlugin.hasMultipleBranches(sourceNode)) return null;
-          
-          const branches = nodePlugin.getBranches(sourceNode);
-          if (!branches || branches.length < 2) return null;
-          
-          const startX = sourceNode.position.x + (NODE_WIDTH / 2);
-          const startY = sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + edgeOutputYOffset;
-          
-          return (
-            <React.Fragment key={`branches-${sourceNode.id}`}>
-              {branches.map(branch => {
-                const targetNodeId = sourceNode.branchConnections[branch.id]?.targetNodeId;
-                const targetNode = targetNodeId ? workflowSteps.find(n => n.id === targetNodeId) : null;
-                
-                let endPoint;
-                if (targetNode) {
-                  endPoint = {
-                    x: targetNode.position.x + (NODE_WIDTH / 2),
-                    y: targetNode.position.y + edgeInputYOffset
-                  };
-                } else {
-                  endPoint = getBranchEndpoint(sourceNode, branch.id);
-                }
-                
-                if (!endPoint) return null;
-                
-                return (
-                  <ConnectorLine
-                    key={`branch-connector-${sourceNode.id}-${branch.id}`}
-                    startPos={{
-                      x: startX,
-                      y: startY
-                    }}
-                    endPos={endPoint}
-                    isHighlighted={selectedNodeIndex === workflowSteps.indexOf(sourceNode) ||
-                                  (targetNode && selectedNodeIndex === workflowSteps.indexOf(targetNode))}
-                    label={branch.label}
-                  />
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
-      </g>
-    );
-  };
-
-  // Render "+" buttons for nodes with flexibility for both standard connections and branches
-  const renderAddNodeButtons = () => {
-    return (
-      <>
-        {/* Render standard node connection buttons */}
-        {workflowSteps.map(node => {
-          // Skip branch nodes
-          const nodePlugin = pluginRegistry.getNodeType(node.type);
-          const hasBranches = nodePlugin && nodePlugin.hasMultipleBranches(node);
-          
-          if (hasBranches) return null;
-          
-          const nodeIndex = workflowSteps.indexOf(node);
-          
-          return (
-            <AddNodeButton
-              key={`add-button-${node.id}`}
-              position={{
-                x: node.position.x,
-                y: node.position.y + (node.height || DEFAULT_NODE_HEIGHT) + 50
-              }}
-              nodeWidth={NODE_WIDTH}
-              buttonSize={BUTTON_SIZE}
-              onAdd={(e) => handleShowAddMenu(nodeIndex, e)}
-              isHighlighted={nodeIndex === selectedNodeIndex}
-              onMouseEnter={handleMenuMouseEnter}
-              onMouseLeave={handleMenuMouseLeave}
-              showMenu={activeAddButtonIndex === nodeIndex}
-              sourceNodeId={node.id}
-              sourceType="standard"
-            />
-          );
-        })}
-        
-        {/* Render branch endpoint buttons */}
-        {workflowSteps.map(node => {
-          const nodePlugin = pluginRegistry.getNodeType(node.type);
-          if (!nodePlugin || !nodePlugin.hasMultipleBranches(node)) return null;
-          
-          const branches = nodePlugin.getBranches(node);
-          if (!branches || branches.length < 2) return null;
-          
-          const nodeIndex = workflowSteps.indexOf(node);
-          
-          return (
-            <React.Fragment key={`branch-buttons-${node.id}`}>
-              {branches.map(branch => {
-                const targetNodeId = node.branchConnections?.[branch.id]?.targetNodeId;
-                const targetNode = targetNodeId ? workflowSteps.find(n => n.id === targetNodeId) : null;
-                
-                if (!targetNode) {
-                  // Show endpoint button if branch has no target
-                  const endpoint = getBranchEndpoint(node, branch.id);
-                  
-                  return (
-                    <BranchEndpointButton
-                      key={`branch-button-${node.id}-${branch.id}`}
-                      position={endpoint}
-                      buttonSize={BUTTON_SIZE}
-                      onAdd={(e) => handleShowBranchAddMenu(nodeIndex, branch.id, e)}
-                      isHighlighted={selectedNodeIndex === nodeIndex}
-                      onMouseEnter={handleMenuMouseEnter}
-                      onMouseLeave={handleMenuMouseLeave}
-                      showMenu={activeBranchButton?.nodeIndex === nodeIndex && 
-                              activeBranchButton?.branchId === branch.id}
-                      sourceNodeId={node.id}
-                      branchId={branch.id}
-                    />
-                  );
-                } else {
-                  // Show continuation button after target node
-                  const targetPlugin = pluginRegistry.getNodeType(targetNode.type);
-                  const targetHasBranches = targetPlugin && targetPlugin.hasMultipleBranches(targetNode);
-                  const targetIndex = workflowSteps.indexOf(targetNode);
-                  
-                  if (!targetHasBranches && targetIndex >= 0) {
-                    return (
-                      <AddNodeButton
-                        key={`branch-button-after-${targetNode.id}`}
-                        position={{
-                          x: targetNode.position.x,
-                          y: targetNode.position.y + (targetNode.height || DEFAULT_NODE_HEIGHT) + 50
-                        }}
-                        nodeWidth={NODE_WIDTH}
-                        buttonSize={BUTTON_SIZE}
-                        onAdd={(e) => handleShowAddMenu(targetIndex, e)}
-                        isHighlighted={targetIndex === selectedNodeIndex}
-                        onMouseEnter={handleMenuMouseEnter}
-                        onMouseLeave={handleMenuMouseLeave}
-                        showMenu={activeAddButtonIndex === targetIndex}
-                        sourceNodeId={targetNode.id}
-                        sourceType="branch-continuation"
-                      />
-                    );
-                  }
-                }
-                return null;
-              })}
-            </React.Fragment>
-          );
-        })}
-      </>
-    );
-  };
-
-  return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="flex items-center justify-between p-4 bg-white border-b">
-        <div className="flex items-center">
-          <button className="flex items-center text-gray-600 hover:text-gray-900">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            <span className="text-sm">Automations</span>
-          </button>
-        </div>
-        <h1 className="text-xl font-semibold">Onboarding completion</h1>
-        <div className="flex items-center space-x-2">
-          <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-            Pause
-          </button>
-          <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-            Edit
-          </button>
-          <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-            Test
-          </button>
-          <button className="px-4 py-2 text-sm font-medium text-white bg-green-500 border border-transparent rounded-md hover:bg-green-600">
-            More actions...
-          </button>
-        </div>
-      </header>
-
-      {/* Tab Navigation */}
-      <div className="flex justify-center py-4 bg-white border-b">
+      <div 
+        className="absolute bg-white rounded-lg shadow-lg border border-gray-200 p-2 z-10 node-menu"
+        style={{
+          left: `${menuPosition.x}px`,
+          top: `${menuPosition.y}px`,
+          transform: 'translateX(-50%)'
+        }}
+        onMouseEnter={handleMenuMouseEnter}
+        onMouseLeave={handleMenuMouseLeave}
+      >
         <div className="flex space-x-2">
           <button 
-            className={`px-4 py-2 text-gray-600 flex items-center ${activeTab === 'details' ? 'bg-blue-50 text-blue-700' : ''} rounded-md hover:bg-gray-100`}
-            onClick={() => setActiveTab('details')}
+            className="p-2 flex flex-col items-center text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md w-20 h-20"
+            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.TRIGGER)}
           >
-            Details and Goal <ChevronRight className="w-4 h-4 ml-1" />
+            <Zap className="w-6 h-6 mb-1" />
+            Trigger
           </button>
           <button 
-            className={`px-4 py-2 text-gray-600 ${activeTab === 'flow' ? 'bg-blue-50 text-blue-700' : ''} rounded-md hover:bg-gray-100`}
-            onClick={() => setActiveTab('flow')}
+            className="p-2 flex flex-col items-center text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md w-20 h-20"
+            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.CONTROL)}
           >
-            Flow
+            <Hexagon className="w-6 h-6 mb-1" />
+            Control
+          </button>
+          <button 
+            className="p-2 flex flex-col items-center text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded-md w-20 h-20"
+            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.ACTION)}
+          >
+            <Send className="w-6 h-6 mb-1" />
+            Action
+          </button>
+        </div>
+        <div className="flex space-x-2 mt-2">
+          <button 
+            className="p-2 flex flex-col items-center text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md w-20 h-20"
+            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.IFELSE)}
+          >
+            <GitBranch className="w-6 h-6 mb-1" />
+            If/Else
+          </button>
+          <button 
+            className="p-2 flex flex-col items-center text-xs bg-green-50 hover:bg-green-100 text-green-700 rounded-md w-20 h-20"
+            onClick={() => handleAddStep(activeAddButtonNodeId, NODE_TYPES.SPLITFLOW)}
+          >
+            <GitMerge className="w-6 h-6 mb-1" />
+            Split Flow
           </button>
         </div>
       </div>
-
-      {/* Zoom Controls for Flow tab */}
-      {activeTab === 'flow' && (
-        <div className="absolute left-6 top-40 bg-white rounded-lg shadow-md p-2 z-50">
-          <div className="flex flex-col space-y-2">
-            <button 
-              onClick={() => handleZoom(1.1)} 
-              className="p-2 hover:bg-gray-100 rounded-md flex items-center justify-center"
-              title="Zoom In"
-            >
-              <ZoomIn className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => handleZoom(0.9)} 
-              className="p-2 hover:bg-gray-100 rounded-md flex items-center justify-center"
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={resetView} 
-              className="p-2 hover:bg-gray-100 rounded-md flex items-center justify-center"
-              title="Reset View"
-            >
-              <Maximize className="w-5 h-5" />
-            </button>
-            <div className="border-t border-gray-200 my-1"></div>
-            <div className="text-center text-xs text-gray-500">
-              {Math.round(transform.scale * 100)}%
-            </div>
-            <div className="border-t border-gray-200 my-1"></div>
-            <button
-              onClick={() => setSnapToGrid(!snapToGrid)}
-              className={`p-2 rounded-md flex items-center justify-center ${snapToGrid ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100'}`}
-              title={snapToGrid ? "Snap to Grid On" : "Snap to Grid Off"}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" strokeWidth="2">
-                <path d="M3 3h18v18H3z" />
-                <path d="M3 9h18" />
-                <path d="M3 15h18" />
-                <path d="M9 3v18" />
-                <path d="M15 3v18" />
-              </svg>
-            </button>
-            <div className="border-t border-gray-200 my-1"></div>
-            {/* Undo/Redo controls */}
-            <button
-              onClick={handleUndo}
-              className={`p-2 rounded-md flex items-center justify-center ${!canUndo ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100'}`}
-              title="Undo"
-              disabled={!canUndo}
-            >
-              <RotateCcw className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleRedo}
-              className={`p-2 rounded-md flex items-center justify-center ${!canRedo ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100'}`}
-              title="Redo"
-              disabled={!canRedo}
-            >
-              <RotateCw className="w-5 h-5" />
-            </button>
-          </div>
+    );
+  }, [
+    activeAddButtonNodeId, 
+    workflowGraph, 
+    buttonYOffset, 
+    handleMenuMouseEnter, 
+    handleMenuMouseLeave, 
+    handleAddStep
+  ]);
+  
+  // Render the branch endpoint menu when active
+  const renderActiveBranchEndpointMenu = useCallback(() => {
+    if (!activeBranchButton) return null;
+    
+    const { nodeId, branchId } = activeBranchButton;
+    const sourceNode = workflowGraph.getNode(nodeId);
+    if (!sourceNode) return null;
+    
+    const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
+    
+    const menuPosition = {
+      x: branchEndpoint.x,
+      y: branchEndpoint.y + BUTTON_SIZE + 10
+    };
+    
+    return (
+      <div 
+        className="absolute bg-white rounded-lg shadow-lg border border-gray-200 p-2 z-10 node-menu"
+        style={{
+          left: `${menuPosition.x}px`,
+          top: `${menuPosition.y}px`,
+          transform: 'translateX(-50%)'
+        }}
+        onMouseEnter={handleMenuMouseEnter}
+        onMouseLeave={handleMenuMouseLeave}
+      >
+        <div className="flex space-x-2">
+          <button 
+            className="p-2 flex flex-col items-center text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md w-20 h-20"
+            onClick={() => handleAddStep(nodeId, NODE_TYPES.TRIGGER, CONNECTION_TYPES.BRANCH, branchId)}
+          >
+            <Zap className="w-6 h-6 mb-1" />
+            Trigger
+          </button>
+          <button 
+            className="p-2 flex flex-col items-center text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md w-20 h-20"
+            onClick={() => handleAddStep(nodeId, NODE_TYPES.CONTROL, CONNECTION_TYPES.BRANCH, branchId)}
+          >
+            <Hexagon className="w-6 h-6 mb-1" />
+            Control
+          </button>
+          <button 
+            className="p-2 flex flex-col items-center text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded-md w-20 h-20"
+            onClick={() => handleAddStep(nodeId, NODE_TYPES.ACTION, CONNECTION_TYPES.BRANCH, branchId)}
+          >
+            <Send className="w-6 h-6 mb-1" />
+            Action
+          </button>
         </div>
-      )}
+      </div>
+    );
+  }, [
+    activeBranchButton, 
+    workflowGraph, 
+    getBranchEndpoint, 
+    handleMenuMouseEnter, 
+    handleMenuMouseLeave, 
+    handleAddStep
+  ]);
 
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden" id="main-content">
-        {/* Workflow Canvas */}
+  // We're now passing pluginRegistry directly to NodePropertiesPanel
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* Tab navigation */}
+      <div className="flex border-b border-gray-200 bg-white shadow-sm">
+        <button
+          className={`px-5 py-4 text-sm font-medium focus:outline-none ${
+            activeTab === 'flow'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('flow')}
+        >
+          Workflow Editor
+        </button>
+        {/* Additional tabs could be added here */}
+      </div>
+
+      {/* Main content area */}
+      <div className="flex-grow flex overflow-hidden">
+        {/* Canvas area */}
         <div
-          id="workflow-canvas"
           ref={canvasRef}
-          className="flex-1 relative overflow-hidden"
-          style={{ 
-            backgroundImage: 'radial-gradient(circle, #e0e0e0 1px, transparent 1px)', 
-            backgroundSize: '20px 20px',
-            backgroundPosition: `${transform.x % 20}px ${transform.y % 20}px`,
-            cursor: isPanning ? 'grabbing' : 'grab'
+          id="workflow-canvas"
+          className="relative flex-grow overflow-hidden"
+          style={{
+            cursor: isPanning ? 'grabbing' : 'default',
+            backgroundColor: '#F9FAFB',
+            backgroundImage: 'radial-gradient(circle, #E5E7EB 1px, transparent 1px)',
+            backgroundSize: `${GRID_SIZE * transform.scale}px ${GRID_SIZE * transform.scale}px`,
+            backgroundPosition: `${transform.x}px ${transform.y}px`
           }}
           onMouseDown={handleCanvasMouseDown}
         >
-          {/* SVG for all connections */}
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            <svg
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-                overflow: 'visible'
-              }}
-            >
-              <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
-                {renderConnections()}
-              </g>
-          </svg>
-          </div>
-          
-          {/* Transform container for nodes and buttons */}
+          {/* Canvas content with transform */}
           <div
+            className="absolute top-0 left-0 w-full h-full transform-gpu"
             style={{
               transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
               transformOrigin: '0 0',
-              width: 'max-content',
-              height: 'max-content',
-              position: 'absolute',
-              minWidth: '100%',
-              minHeight: '100%',
-              zIndex: 1
+              width: '100%',
+              height: '100%'
             }}
           >
-            {renderAddNodeButtons()}
-            
-            {/* Render all nodes */}
-            {workflowSteps.map((step, index) => (
+            {/* SVG for connection lines */}
+            <svg
+              width="100%"
+              height="100%"
+              className="absolute top-0 left-0 pointer-events-none"
+              style={{ zIndex: 0 }}
+            >
+              {renderConnections()}
+            </svg>
+
+            {/* Workflow step nodes */}
+            {workflowSteps.map(step => (
               <WorkflowStep
                 key={step.id}
                 id={step.id}
@@ -1927,54 +1872,102 @@ const AutomationWorkflow = () => {
                 position={step.position}
                 transform={transform}
                 onClick={handleStepClick}
-                onDragStart={(id, position) => {
-                  const dragIndex = workflowSteps.findIndex(step => step.id === id);
-                  setSelectedNodeIndex(dragIndex);
-                  setDragStartPosition(position);
-                }}
+                onDragStart={handleNodeDragStart}
                 onDrag={handleNodeDrag}
                 onDragEnd={handleNodeDragEnd}
                 onHeightChange={handleNodeHeightChange}
-                isNew={step.isNew || false}
-                isAnimating={animatingNodes.includes(step.id)}
-                isSelected={selectedNodeIndex === index}
+                isNew={step.isNew || animatingNodes.includes(step.id)}
+                isSelected={selectedNodeId === step.id}
                 contextMenuConfig={step.contextMenuConfig}
               />
             ))}
+
+            {/* Add node buttons */}
+            {renderAddNodeButtons()}
+
+            {/* Active Add Node Menu */}
+            {renderActiveAddNodeMenu()}
+
+            {/* Active Branch Endpoint Menu */}
+            {renderActiveBranchEndpointMenu()}
           </div>
-          
-          {/* Canvas instructions overlay */}
-          <div className="absolute bottom-4 left-4 bg-white bg-opacity-95 rounded-lg shadow-sm p-2 text-sm text-gray-600 flex items-center">
-            <Move className="w-4 h-4 mr-1" /> Drag canvas to pan •
-            <ZoomIn className="w-4 h-4 mx-1" /> Scroll to zoom •
-            Drag nodes to reposition •
-            <RotateCcw className="w-4 h-4 mx-1" /> Undo/Redo available
+
+          {/* Floating controls for zoom and reset (fixed position) */}
+          <div className="absolute bottom-4 right-4 flex space-x-2">
+            <button
+              className="p-2 bg-white rounded-full shadow hover:bg-gray-50 focus:outline-none"
+              onClick={() => handleZoom(1.2)}
+              title="Zoom In"
+            >
+              <ZoomIn className="w-5 h-5 text-gray-700" />
+            </button>
+            <button
+              className="p-2 bg-white rounded-full shadow hover:bg-gray-50 focus:outline-none"
+              onClick={() => handleZoom(0.8)}
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-5 h-5 text-gray-700" />
+            </button>
+            <button
+              className="p-2 bg-white rounded-full shadow hover:bg-gray-50 focus:outline-none"
+              onClick={resetView}
+              title="Reset View"
+            >
+              <Maximize className="w-5 h-5 text-gray-700" />
+            </button>
+          </div>
+
+          {/* Undo/Redo controls */}
+          <div className="absolute top-4 left-4 flex space-x-2">
+            <button
+              className={`p-2 rounded-full shadow focus:outline-none ${
+                canUndo ? 'bg-white hover:bg-gray-50 text-gray-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Undo"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
+            <button
+              className={`p-2 rounded-full shadow focus:outline-none ${
+                canRedo ? 'bg-white hover:bg-gray-50 text-gray-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+              onClick={handleRedo}
+              disabled={!canRedo}
+              title="Redo"
+            >
+              <RotateCw className="w-5 h-5" />
+            </button>
           </div>
         </div>
-        
-        {/* Right Sidebar - Either shows metrics or node properties */}
-        {activeTab !== 'flow' ? (
-          <div className="w-80 border-l bg-white overflow-y-auto">
-            {/* Metrics panel */}
-            {/* ... */}
-          </div>
-        ) : (
-          /* Dynamic Node Properties Panel - shown only when a node is selected */
-          selectedNodeIndex !== null && (
-            <NodePropertiesPanel
-              node={workflowSteps[selectedNodeIndex]}
-              onClose={() => setSelectedNodeIndex(null)}
-              onUpdate={handleUpdateNodeProperty}
-              registry={pluginRegistry}
-            />
-          )
-        )}
 
-        
+        {/* Properties panel */}
+        {selectedNode && (
+          <div className="w-1/3 max-w-md border-l border-gray-200 bg-white overflow-y-auto animate-slideIn">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center">
+                  Node Properties
+                </h2>
+                <button
+                  onClick={() => setSelectedNodeId(null)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              </div>
+
+              <NodePropertiesPanel
+                node={selectedNode}
+                registry={pluginRegistry}
+                onUpdate={handleUpdateNodeProperty}
+                onClose={() => setSelectedNodeId(null)}
+              />
+            </div>
+          </div>
+        )}
       </div>
-      
-      {/* Menu portal - rendered using React's createPortal outside the component tree */}
-      {renderMenuPortal()}
     </div>
   );
 };
