@@ -2,37 +2,28 @@ import React, { useState } from 'react';
 import './App.css';
 import './index.css';
 import AutomationWorkflow from './AutomationWorkflow';
-import { testDeleteUndoFix } from './test-fix';
+import SimpleValidationTest from './SimpleValidationTest';
 
 function App() {
-  const [testResult, setTestResult] = useState(null);
-
-  const runTest = () => {
-    const result = testDeleteUndoFix();
-    setTestResult(result);
-    console.log("Test completed - check console logs for details");
-  };
+  const [showTestComponent, setShowTestComponent] = useState(false);
 
   return (
     <div className="App">
-      <div style={{ padding: '10px', background: '#f0f0f0', marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
-        <h3>Automation Workflow</h3>
-        <div>
-          <button
-            onClick={runTest}
-            style={{ padding: '5px 10px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            Run Delete Undo Test
-          </button>
-          {testResult && (
-            <div style={{ marginTop: '10px', padding: '5px', background: '#e6f7ff', borderRadius: '4px' }}>
-              <p>{testResult}</p>
-              <p>Check browser console for detailed test results</p>
-            </div>
-          )}
-        </div>
+      <div className="p-4 bg-gray-100 flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Automation Workflow</h1>
+        <button 
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          onClick={() => setShowTestComponent(!showTestComponent)}
+        >
+          {showTestComponent ? 'Show Workflow' : 'Test Validation'}
+        </button>
       </div>
-      <AutomationWorkflow />
+
+      {showTestComponent ? (
+        <SimpleValidationTest />
+      ) : (
+        <AutomationWorkflow />
+      )}
     </div>
   );
 }

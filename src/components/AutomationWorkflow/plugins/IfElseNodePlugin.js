@@ -1,32 +1,37 @@
-import { NodeTypePlugin } from './NodeTypePlugin';
+import { createNodePlugin } from './createNodePlugin';
 import { GitBranch } from 'lucide-react';
 
 /**
  * If/Else Node Plugin
- * 
+ *
  * A plugin for conditional branching node types.
  */
-export const IfElseNodePlugin = new NodeTypePlugin({
+export const IfElseNodePlugin = createNodePlugin({
+  // Basic node configuration
   type: 'ifelse',
   name: 'If/Else',
   icon: GitBranch,
   color: 'indigo',
   description: 'Creates a conditional branch in the flow',
   
-  // Define the branches for this node type
-  branches: [
-    { id: 'yes', label: 'Yes', description: 'Path taken when condition is true' },
-    { id: 'no', label: 'No', description: 'Path taken when condition is false' }
-  ],
+  // Use common property groups and properties
+  useCommonGroups: ['basic'],
+  useCommonProperties: ['title', 'subtitle'],
   
-  propertyGroups: [
-    {
-      id: 'basic',
-      label: 'Basic Information',
-      description: 'Configure the basic information',
-      collapsed: false,
-      order: 0
+  // Custom property overrides
+  propertyOverrides: {
+    title: {
+      description: 'The name of this condition node',
+      defaultValue: 'If/else'
     },
+    subtitle: {
+      description: 'A brief description of the condition',
+      defaultValue: 'Clicked link is not Something...'
+    }
+  },
+  
+  // Custom property groups
+  propertyGroups: [
     {
       id: 'conditionConfig',
       label: 'Condition Configuration',
@@ -36,27 +41,8 @@ export const IfElseNodePlugin = new NodeTypePlugin({
     }
   ],
   
+  // Custom properties
   propertySchema: [
-    {
-      id: 'title',
-      type: 'text',
-      label: 'Title',
-      description: 'The name of this condition node',
-      defaultValue: 'If/else',
-      required: true,
-      groupId: 'basic',
-      order: 0
-    },
-    {
-      id: 'subtitle',
-      type: 'text',
-      label: 'Subtitle',
-      description: 'A brief description of the condition',
-      defaultValue: 'Clicked link is not Something...',
-      required: false,
-      groupId: 'basic',
-      order: 1
-    },
     {
       id: 'conditionField',
       type: 'select',
@@ -108,12 +94,14 @@ export const IfElseNodePlugin = new NodeTypePlugin({
     }
   ],
   
+  // Define the branches for this node type
+  branches: [
+    { id: 'yes', label: 'Yes', description: 'Path taken when condition is true' },
+    { id: 'no', label: 'No', description: 'Path taken when condition is false' }
+  ],
+  
+  // Custom validation rules (inherits common ones for title/subtitle)
   validationRules: {
-    title: {
-      required: true,
-      minLength: 3,
-      maxLength: 50
-    },
     conditionField: {
       required: true
     },
@@ -125,6 +113,7 @@ export const IfElseNodePlugin = new NodeTypePlugin({
     }
   },
   
+  // Initial properties (will be merged with defaults for common properties)
   initialProperties: {
     title: 'If/else',
     subtitle: 'Clicked link is not Something...',
