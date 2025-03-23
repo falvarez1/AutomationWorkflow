@@ -11,6 +11,9 @@ export const LAYOUT = {
   // Grid settings
   GRID: {
     SIZE: 20,
+    COLOR: '#E5E7EB', // Default grid color
+    SHOW_GRID: true,  // Whether to show the grid
+    SNAP_TO_GRID: true // Whether to snap nodes to grid by default
   },
   
   // Zoom constraints
@@ -34,6 +37,17 @@ export const LAYOUT = {
   // Timing constants
   TIMING: {
     AUTO_HIDE_TIMEOUT: 2500, // 2.5 seconds
+  },
+
+  // Node placement configuration
+  NODE_PLACEMENT: {
+    // Standard connection spacing
+    STANDARD_VERTICAL_SPACING: 175,
+    
+    // Branch connection spacing
+    BRANCH_VERTICAL_SPACING: 130,
+    BRANCH_LEFT_OFFSET: -120,
+    BRANCH_RIGHT_OFFSET: 120
   }
 };
 
@@ -41,6 +55,9 @@ export const LAYOUT = {
 export const DEFAULT_NODE_HEIGHT = LAYOUT.NODE.DEFAULT_HEIGHT;
 export const DEFAULT_NODE_WIDTH = LAYOUT.NODE.DEFAULT_WIDTH;
 export const GRID_SIZE = LAYOUT.GRID.SIZE;
+export const GRID_COLOR = LAYOUT.GRID.COLOR;
+export const SHOW_GRID = LAYOUT.GRID.SHOW_GRID;
+export const SNAP_TO_GRID = LAYOUT.GRID.SNAP_TO_GRID;
 export const ZOOM_MIN = LAYOUT.ZOOM.MIN;
 export const ZOOM_MAX = LAYOUT.ZOOM.MAX;
 export const AUTO_HIDE_TIMEOUT = LAYOUT.TIMING.AUTO_HIDE_TIMEOUT;
@@ -48,6 +65,10 @@ export const BUTTON_SIZE = LAYOUT.BUTTON.SIZE;
 export const BUTTON_Y_OFFSET = LAYOUT.BUTTON.Y_OFFSET;
 export const EDGE_INPUT_Y_OFFSET = LAYOUT.EDGE.INPUT_Y_OFFSET;
 export const EDGE_OUTPUT_Y_OFFSET = LAYOUT.EDGE.OUTPUT_Y_OFFSET;
+export const STANDARD_VERTICAL_SPACING = LAYOUT.NODE_PLACEMENT.STANDARD_VERTICAL_SPACING;
+export const BRANCH_VERTICAL_SPACING = LAYOUT.NODE_PLACEMENT.BRANCH_VERTICAL_SPACING;
+export const BRANCH_LEFT_OFFSET = LAYOUT.NODE_PLACEMENT.BRANCH_LEFT_OFFSET;
+export const BRANCH_RIGHT_OFFSET = LAYOUT.NODE_PLACEMENT.BRANCH_RIGHT_OFFSET;
 
 /**
  * Node type definitions

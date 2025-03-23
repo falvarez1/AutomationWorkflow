@@ -10,7 +10,8 @@ import {
   GitBranch,
   GitMerge,
   RotateCcw,
-  RotateCw
+  RotateCw,
+  Grid
 } from 'lucide-react';
 
 // Import Graph and command pattern components
@@ -62,7 +63,14 @@ import {
   NODE_TYPES,
   CONNECTION_TYPES,
   INITIAL_WORKFLOW_STEPS,
-  BRANCH_EDGE_COLORS
+  BRANCH_EDGE_COLORS,
+  SHOW_GRID,
+  GRID_COLOR,
+  SNAP_TO_GRID,
+  STANDARD_VERTICAL_SPACING,
+  BRANCH_VERTICAL_SPACING,
+  BRANCH_LEFT_OFFSET,
+  BRANCH_RIGHT_OFFSET
 } from './components/AutomationWorkflow/constants';
 
 // Register node types
@@ -78,7 +86,11 @@ pluginRegistry.registerPropertyControl(NumberControl);
 pluginRegistry.registerPropertyControl(CheckboxControl);
 
 // Main Automation Workflow Component
-const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) => {
+const AutomationWorkflow = ({ 
+  initialWorkflowSteps = INITIAL_WORKFLOW_STEPS,
+  gridOptions = {}, // Allow grid options to be passed as props
+  nodePlacementOptions = {} // Add node placement options
+}) => {
   // Canvas pan and zoom state
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: .8 });
   const [isPanning, setIsPanning] = useState(false);
@@ -94,13 +106,25 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
     Graph.fromWorkflowSteps(initialWorkflowSteps)
   );
 
+  // Get grid settings with defaults from constants
+  const showGrid = gridOptions.showGrid !== undefined ? gridOptions.showGrid : SHOW_GRID;
+  const gridColor = gridOptions.gridColor || GRID_COLOR;
+  const [snapToGrid, setSnapToGrid] = useState(
+    gridOptions.snapToGrid !== undefined ? gridOptions.snapToGrid : SNAP_TO_GRID
+  );
+
+  // Get node placement settings with defaults from constants
+  const standardVerticalSpacing = nodePlacementOptions.standardVerticalSpacing || STANDARD_VERTICAL_SPACING;
+  const branchVerticalSpacing = nodePlacementOptions.branchVerticalSpacing || BRANCH_VERTICAL_SPACING;
+  const branchLeftOffset = nodePlacementOptions.branchLeftOffset || BRANCH_LEFT_OFFSET;
+  const branchRightOffset = nodePlacementOptions.branchRightOffset || BRANCH_RIGHT_OFFSET;
+
   // State for selection and UI interactions
   const [activeTab, setActiveTab] = useState('flow');
   const [showNodeMenu, setShowNodeMenu] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [activeAddButtonNodeId, setActiveAddButtonNodeId] = useState(null);
   const [activeBranchButton, setActiveBranchButton] = useState(null);
-  const [snapToGrid] = useState(true); // We're not changing this, so no need for setter
   const [dragStartPosition, setDragStartPosition] = useState(null);
   
   // Convert graph nodes to array for rendering compatibility
@@ -491,15 +515,20 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
     if (connectionType === CONNECTION_TYPES.BRANCH && branchId) {
       // For branch connections, use the branch endpoint position
       const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
+      const isLeftNode = branchId === 'yes' || branchId === 'path1';
+      
+      // Use configurable branch offset
+      const branchOffset = isLeftNode ? branchLeftOffset : branchRightOffset;
+  
       newPos = {
-        x: branchEndpoint.x - (DEFAULT_NODE_WIDTH / 2), // Adjust to place node centered on endpoint
-        y: branchEndpoint.y + 50 // Place node below the endpoint
+        x: branchEndpoint.x - (DEFAULT_NODE_WIDTH / 2) + branchOffset,
+        y: branchEndpoint.y + branchVerticalSpacing
       };
     } else {
       // For standard connections, place new node below the source node
       newPos = {
         x: sourceNode.position.x,
-        y: sourceNode.position.y + 175
+        y: sourceNode.position.y + standardVerticalSpacing
       };
     }
     
@@ -571,7 +600,9 @@ const AutomationWorkflow = ({ initialWorkflowSteps = INITIAL_WORKFLOW_STEPS }) =
     // Close any open menus
     setActiveAddButtonNodeId(null);
     setActiveBranchButton(null);
-  }, [workflowGraph, createNewNode, getBranchEndpoint]);
+  }, [workflowGraph, createNewNode, getBranchEndpoint, 
+    standardVerticalSpacing, branchVerticalSpacing, 
+    branchLeftOffset, branchRightOffset]);
 
   // Initialize command manager and listen for changes
   useEffect(() => {
@@ -1458,7 +1489,7 @@ const renderConnections = useCallback(() => {
           style={{
             cursor: isPanning ? 'grabbing' : 'default',
             backgroundColor: '#F9FAFB',
-            backgroundImage: 'radial-gradient(circle, #E5E7EB 1px, transparent 1px)',
+            backgroundImage: showGrid ? `radial-gradient(circle, ${gridColor} 1px, transparent 1px)` : 'none',
             backgroundSize: `${GRID_SIZE * transform.scale}px ${GRID_SIZE * transform.scale}px`,
             backgroundPosition: `${transform.x}px ${transform.y}px`
           }}
@@ -1540,6 +1571,17 @@ const renderConnections = useCallback(() => {
               title="Reset View"
             >
               <Maximize className="w-5 h-5 text-gray-700" />
+            </button>
+            
+            {/* Add Snap to Grid toggle button */}
+            <button
+              className={`p-2 rounded-full shadow focus:outline-none ${
+                snapToGrid ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+              onClick={() => setSnapToGrid(!snapToGrid)}
+              title={snapToGrid ? "Snap to Grid: On" : "Snap to Grid: Off"}
+            >
+              <Grid className="w-5 h-5" />
             </button>
           </div>
 
