@@ -133,7 +133,6 @@ const AutomationWorkflow = ({
 
   // State for selection and UI interactions
   const [activeTab, setActiveTab] = useState('flow');
-  const [showNodeMenu, setShowNodeMenu] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [dragStartPosition, setDragStartPosition] = useState(null);
   
@@ -253,18 +252,13 @@ const handleNodeHeightChange = useCallback((id, height) => {
           handleCloseMenu();
         }
       }
-      
-      // Only handle the context menu closing
-      if (showNodeMenu && !isClickingMenu) {
-        setShowNodeMenu(false);
-      }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [menuState, showNodeMenu, handleCloseMenu]);
+  }, [menuState, handleCloseMenu]);
   
   // Add a ref to track if we just clicked a node
   const justClickedNodeRef = useRef(false);
