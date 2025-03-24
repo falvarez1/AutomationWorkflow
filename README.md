@@ -2,7 +2,7 @@
 
 A powerful and flexible React-based workflow automation builder with a graph-based architecture. AutomationWorkflow provides a visual interface for creating, configuring, and managing complex automation workflows.
 
-![Workflow Sample](./docs/workflow-sample.png)
+![Workflow Sample](./docs/images/workflow-sample.png)
 
 ## ✨ Features
 
