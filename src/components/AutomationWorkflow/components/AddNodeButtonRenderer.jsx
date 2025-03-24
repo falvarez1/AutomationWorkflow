@@ -1,7 +1,8 @@
 import React from 'react';
+import { Plus } from 'lucide-react';
 import AddNodeButton from '../ui/AddNodeButton';
-import { calculateConnectionPoints, calculateBranchConnectionPoints } from '../utils/positionUtils';
-import { LAYOUT } from '../constants';
+import { calculateConnectionPoints, getBranchEndpoint, calculateBranchConnectionPoints } from '../utils/positionUtils';
+import { LAYOUT, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../constants';
 
 /**
  * Component responsible for rendering all add node buttons
@@ -86,56 +87,162 @@ const AddNodeButtonRenderer = ({
       }
     });
     
-    // Add buttons at branch endpoints (if/else and split flow nodes)
-    workflowGraph.getAllNodes().forEach(node => {
-      // Only handle nodes with branches (ifelse, splitflow)
-      if (node.type === 'ifelse' || node.type === 'splitflow') {
-        const branches = [];
+    // Add dashed edge and button for nodes that don't have outgoing edges
+    workflowGraph.getAllNodes().forEach((node) => {
+      const hasOutgoingEdge = workflowGraph.getOutgoingEdges(node.id).length > 0;
+      
+      // Only add a dashed edge and button if there are no outgoing edges
+      if (!hasOutgoingEdge) {
+        // Use DEFAULT_NODE constants directly to avoid undefined values
+        const startPos = {
+          x: node.position.x + (DEFAULT_NODE_WIDTH / 2),
+          y: node.position.y + (node.height || DEFAULT_NODE_HEIGHT)
+        };
         
-        // Get branch information based on node type
+        const endPos = {
+          x: startPos.x,
+          y: startPos.y + 70 // Distance for dashed edge
+        };
+        
+        const buttonPosition = {
+          x: endPos.x,
+          y: endPos.y
+        };
+                       
+        // Add "Add a step" button at end of dashed line, but only for nodes that are not ifelse or splitflow
+        // Branch-specific nodes will get specialized buttons instead
+        if (node.type !== 'ifelse' && node.type !== 'splitflow') {
+          // Add dashed edge
+          buttons.push(
+            <svg
+              key={`dashed-edge-${node.id}`}
+              className="absolute pointer-events-none"
+              style={{
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                overflow: 'visible',
+                zIndex: 4 // Between edges (0) and nodes (10+)
+              }}
+            >
+              <path
+                d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
+                stroke="#D1D5DB"
+                strokeWidth="2"
+                strokeDasharray="5,5"
+                fill="none"
+              />
+            </svg>
+          );
+
+          buttons.push(
+            <div
+              key={`add-step-button-${node.id}`}
+              className="absolute flex items-center justify-center"
+              style={{
+                top: buttonPosition.y - 10, // Adjust to center it
+                left: buttonPosition.x - 70, // Adjust to center it
+                width: 140,
+                borderRadius: 20,
+                zIndex: 5
+              }}
+            >
+              <button
+                className="flex items-center justify-center gap-2 bg-white border border-blue-300 text-blue-500 px-4 py-2 rounded-full shadow-sm hover:shadow-md transition-all"
+                onClick={(e) => {
+                  // Get button position
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const buttonRect = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2,
+                    width: rect.width,
+                    height: rect.height
+                  };
+                  handleShowAddMenu(node.id, e, buttonRect);
+                }}
+              >
+                <Plus size={16} className="text-blue-500" />
+                <span>Add a step</span>
+              </button>
+            </div>
+          );
+        }
+      }
+      
+      // Add branch endpoint buttons for IF/ELSE and SPLIT FLOW nodes
+      if (node.type === 'ifelse' || node.type === 'splitflow') {
+        // Get the branch configuration based on node type
+        let branches = [];
+        
         if (node.type === 'ifelse') {
-          branches.push({ id: 'yes', label: 'Yes' });
-          branches.push({ id: 'no', label: 'No' });
+          branches = [
+            { id: 'yes', label: 'True Path' },
+            { id: 'no', label: 'False Path' }
+          ];
         } else if (node.type === 'splitflow') {
-          const nodeType = pluginRegistry.getNodeType('splitflow');
-          if (nodeType && nodeType.getBranches) {
-            branches.push(...nodeType.getBranches(node.properties));
-          }
+          // Get branches from the plugin based on node properties
+          const plugin = pluginRegistry.getNodeType('splitflow');
+          branches = plugin.getBranches(node.properties);
         }
         
-        // For each branch, add a button at its endpoint
+        // Render a button for each branch endpoint
         branches.forEach(branch => {
-          // Skip branches that already have connections
-          const hasExistingConnection = workflowGraph.getBranchOutgoingEdges(node.id)
-            .some(edge => edge.label === branch.id);
+          const branchEndpoint = getBranchEndpoint(node, branch.id, pluginRegistry);
+          if (!branchEndpoint) return;
+          
+          // Check if there's already a connection from this branch
+          const hasBranchConnection = workflowGraph.getOutgoingEdges(node.id)
+            .some(edge => edge.type === 'branch' && edge.label === branch.id);
+          
+          // Only render endpoint button if no connection exists
+          if (!hasBranchConnection) {
+            const buttonPosition = {
+              x: branchEndpoint.x,
+              y: branchEndpoint.y + 20  // Position below the branch endpoint
+            };
             
-          if (!hasExistingConnection) {
-            const branchEndpoint = pluginRegistry.getNodeType(node.type)
-              .getBranchEndpoint(node, branch.id);
-              
-            if (branchEndpoint) {
-              const isHighlighted = menuState.activeNodeId === node.id && 
-                                    menuState.activeBranch === branch.id &&
-                                    menuState.menuType === 'branch';
-                                
-              const showMenu = menuState.activeNodeId === node.id && 
-                                menuState.activeBranch === branch.id &&
-                                menuState.menuType === 'branch';
-              
-              buttons.push(
-                <AddNodeButton
-                  key={`add-button-branch-${node.id}-${branch.id}`}
-                  position={branchEndpoint}
-                  nodeWidth={0}
-                  buttonSize={LAYOUT.BUTTON.SIZE}
-                  onAdd={(e, buttonRect) => handleShowBranchEndpointMenu(node.id, branch.id, e, buttonRect)}
-                  isHighlighted={isHighlighted}
-                  showMenu={showMenu}
-                  sourceNodeId={node.id}
-                  sourceType="branch"
-                />
-              );
+            // Determine button color based on node type
+            let buttonStyle = '';
+            if (node.type === 'ifelse') {
+              buttonStyle = branch.id === 'yes' ?
+                'bg-indigo-50 border-indigo-200 text-indigo-500 hover:bg-indigo-100' :
+                'bg-purple-50 border-purple-200 text-purple-500 hover:bg-purple-100';
+            } else if (node.type === 'splitflow') {
+              buttonStyle = 'bg-green-50 border-green-200 text-green-500 hover:bg-green-100';
             }
+            
+            // Add specialized branch endpoint button
+            buttons.push(
+              <div
+                key={`branch-endpoint-${node.id}-${branch.id}`}
+                className="absolute flex items-center justify-center"
+                style={{
+                  top: buttonPosition.y - 10,
+                  left: buttonPosition.x - 65,
+                  width: 130,
+                  zIndex: 5
+                }}
+              >
+                <button
+                  className={`flex items-center justify-center gap-1 ${buttonStyle} border px-3 py-1.5 rounded-full shadow-sm hover:shadow-md transition-all text-sm`}
+                  onClick={(e) => {
+                    // Get button position
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const buttonRect = {
+                      x: rect.left + rect.width / 2,
+                      y: rect.top + rect.height / 2,
+                      width: rect.width,
+                      height: rect.height
+                    };
+                    handleShowBranchEndpointMenu(node.id, branch.id, e, buttonRect);
+                  }}
+                >
+                  <Plus size={14} />
+                  <span>{branch.label}</span>
+                </button>
+              </div>
+            );
           }
         });
       }

@@ -29,10 +29,11 @@ import { SplitFlowNodePlugin } from './components/AutomationWorkflow/plugins/Spl
 
 // Import UI components
 import WorkflowStep from './components/AutomationWorkflow/ui/WorkflowStep';
-import ConnectorLine from './components/AutomationWorkflow/ui/ConnectorLine';
-import AddNodeButton from './components/AutomationWorkflow/ui/AddNodeButton';
+// Remove direct AddNodeButton import as it's now used by AddNodeButtonRenderer
 import NodeMenu from './components/AutomationWorkflow/ui/NodeMenu';
 import BranchMenu from './components/AutomationWorkflow/ui/BranchMenu';
+import ConnectionRenderer from './components/AutomationWorkflow/components/ConnectionRenderer';
+import AddNodeButtonRenderer from './components/AutomationWorkflow/components/AddNodeButtonRenderer';
 
 // Import the NodePropertiesPanel
 import { NodePropertiesPanel } from './components/AutomationWorkflow/NodeProperties';
@@ -1018,290 +1019,9 @@ const handleNodeHeightChange = useCallback((id, height) => {
       endPos: { x: targetX, y: targetY }
     };
   }, [getBranchEndpoint, edgeInputYOffset]);
-// Render all connector lines between nodes
-const renderConnections = useCallback(() => {
-  const connectors = [];
-  
-  workflowGraph.getAllEdges().forEach(edge => {
-    const sourceNode = workflowGraph.getNode(edge.sourceId);
-    const targetNode = workflowGraph.getNode(edge.targetId);
-    
-    if (!sourceNode || !targetNode) return;
-    
-    let connectionPoints;
-    let edgeColor = BRANCH_EDGE_COLORS.DEFAULT; // Default gray color
-    
-    if (edge.type === CONNECTION_TYPES.DEFAULT) {
-      connectionPoints = calculateConnectionPoints(sourceNode, targetNode);
-    } else if (edge.type === CONNECTION_TYPES.BRANCH) {
-      connectionPoints = calculateBranchConnectionPoints(sourceNode, targetNode, edge.label);
-      
-      // Apply color based on node type and branch label
-      if (sourceNode.type === NODE_TYPES.IFELSE) {
-        if (edge.label === 'yes') {
-          edgeColor = BRANCH_EDGE_COLORS.IFELSE.YES;
-        } else if (edge.label === 'no') {
-          edgeColor = BRANCH_EDGE_COLORS.IFELSE.NO;
-        }
-      } else if (sourceNode.type === NODE_TYPES.SPLITFLOW) {
-        // For split flow, use branch-specific colors or default
-        const branchKey = `BRANCH_${edge.label}`;
-        edgeColor = BRANCH_EDGE_COLORS.SPLITFLOW[branchKey] || BRANCH_EDGE_COLORS.SPLITFLOW.DEFAULT;
-      }
-    }
-    
-    // Check if this edge is connected to the selected node
-    const isConnectedToSelectedNode = selectedNodeId &&
-      (edge.sourceId === selectedNodeId || edge.targetId === selectedNodeId);
-    
-    if (connectionPoints && connectionPoints.startPos && connectionPoints.endPos) {
-      connectors.push(
-        <ConnectorLine
-          key={`${edge.sourceId}-${edge.targetId}-${edge.type}-${edge.label || 'default'}`}
-          startPos={connectionPoints.startPos}
-          endPos={connectionPoints.endPos}
-          isHighlighted={isConnectedToSelectedNode}
-          label={edge.type === CONNECTION_TYPES.BRANCH ? edge.label : null}
-          color={edgeColor}
-        />
-      );
-    }
-  });
-  
-  return connectors;
-}, [workflowGraph, calculateConnectionPoints, calculateBranchConnectionPoints, selectedNodeId]);
-  
-  // Update renderAddNodeButtons to use the consolidated menu state
-  const renderAddNodeButtons = useCallback(() => {
-    const buttons = [];
-    //console.log("Rendering add node buttons...");
-    // Render a button on each edge connection line (midway between source and target)
-    workflowGraph.getAllEdges().forEach((edge) => {
-      const sourceNode = workflowGraph.getNode(edge.sourceId);
-      const targetNode = workflowGraph.getNode(edge.targetId);
-      
-      if (!sourceNode || !targetNode) return;
-      
-      let connectionPoints;
-      
-      // Calculate connection points based on the edge type
-      if (edge.type === CONNECTION_TYPES.DEFAULT) {
-        connectionPoints = calculateConnectionPoints(sourceNode, targetNode);
-      } else if (edge.type === CONNECTION_TYPES.BRANCH) {
-        connectionPoints = calculateBranchConnectionPoints(sourceNode, targetNode, edge.label);
-      }
-      
-      if (connectionPoints && connectionPoints.startPos && connectionPoints.endPos) {
-        // Calculate midpoint of the edge for button placement
-        const midX = (connectionPoints.startPos.x + connectionPoints.endPos.x) / 2;
-        const midY = (connectionPoints.startPos.y + connectionPoints.endPos.y) / 2;
-        
-        const buttonPosition = { x: midX, y: midY };
-        
-        // For branch edges, use handleShowBranchEdgeMenu instead
-        const onAddHandler = edge.type === CONNECTION_TYPES.BRANCH
-          ? (e, buttonRect) => handleShowBranchEdgeMenu(edge.sourceId, edge.label, e, buttonRect)
-          : (e, buttonRect) => handleShowAddMenu(edge.sourceId, e, buttonRect);
-        
-        const isHighlighted = edge.type === CONNECTION_TYPES.BRANCH
-          ? menuState.activeNodeId === edge.sourceId && 
-            menuState.activeBranch === edge.label &&
-            (menuState.menuType === 'branch' || menuState.menuType === 'branchEdge')
-          : menuState.activeNodeId === edge.sourceId && menuState.menuType === 'add';
-        
-        const showMenu = edge.type === CONNECTION_TYPES.BRANCH
-          ? menuState.activeNodeId === edge.sourceId && 
-            menuState.activeBranch === edge.label &&
-            (menuState.menuType === 'branch' || menuState.menuType === 'branchEdge')
-          : menuState.activeNodeId === edge.sourceId && menuState.menuType === 'add';
-                      
-        buttons.push(
-          <AddNodeButton
-            key={`add-button-edge-${edge.sourceId}-${edge.targetId}-${edge.type}-${edge.label || 'default'}`}
-            position={buttonPosition}
-            nodeWidth={0} // Not node-relative anymore
-            buttonSize={BUTTON_SIZE}
-            onAdd={onAddHandler}
-            isHighlighted={isHighlighted}
-            showMenu={showMenu}
-            sourceNodeId={edge.sourceId}
-            sourceType={edge.type === CONNECTION_TYPES.BRANCH ? "branch" : "standard"}
-          />
-        );
-      }
-    });
-    
-    // Add dashed edge and button for nodes that don't have outgoing edges
-    workflowGraph.getAllNodes().forEach((node) => {
-      const hasOutgoingEdge = workflowGraph.getOutgoingEdges(node.id).length > 0;
-      
-      // Only add a dashed edge and button if there are no outgoing edges
-      if (!hasOutgoingEdge) {
-        const startPos = {
-          x: node.position.x + (DEFAULT_NODE_WIDTH / 2),
-          y: node.position.y + (node.height || DEFAULT_NODE_HEIGHT)
-        };
-        
-        const endPos = {
-          x: startPos.x,
-          y: startPos.y + 70 // Distance for dashed edge
-        };
-        
-        const buttonPosition = {
-          x: endPos.x,
-          y: endPos.y
-        };
-                       
-        // Add "Add a step" button at end of dashed line, but only for nodes that are not ifelse or splitflow
-        // Branch-specific nodes will get specialized buttons instead
-        if (node.type !== NODE_TYPES.IFELSE && node.type !== NODE_TYPES.SPLITFLOW) {
-          // Add dashed edge
-          buttons.push(
-            <svg
-              key={`dashed-edge-${node.id}`}
-              className="absolute pointer-events-none"
-              style={{
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                overflow: 'visible',
-                zIndex: 4 // Between edges (0) and nodes (10+)
-              }}
-            >
-              <path
-                d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
-                stroke="#D1D5DB"
-                strokeWidth="2"
-                strokeDasharray="5,5"
-                fill="none"
-              />
-            </svg>
-          );
 
-          buttons.push(
-            <div
-              key={`add-step-button-${node.id}`}
-              className="absolute flex items-center justify-center"
-              style={{
-                top: buttonPosition.y - 10, // Adjust to center it
-                left: buttonPosition.x - 70, // Adjust to center it
-                width: 140,
-                borderRadius: 20,
-                zIndex: 5
-              }}
-            >
-              <button
-                className="flex items-center justify-center gap-2 bg-white border border-blue-300 text-blue-500 px-4 py-2 rounded-full shadow-sm hover:shadow-md transition-all"
-                onClick={(e) => {
-                  // Get button position
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const buttonRect = {
-                    x: rect.left + rect.width / 2,
-                    y: rect.top + rect.height / 2,
-                    width: rect.width,
-                    height: rect.height
-                  };
-                  handleShowAddMenu(node.id, e, buttonRect);
-                }}
-              >
-                <Plus size={16} className="text-blue-500" />
-                <span>Add a step</span>
-              </button>
-            </div>
-          );
-        }
-      }
-      // Add branch endpoint buttons for IF/ELSE and SPLIT FLOW nodes
-      if (node.type === NODE_TYPES.IFELSE || node.type === NODE_TYPES.SPLITFLOW) {
-        // Get the branch configuration based on node type
-        let branches = [];
-        
-        if (node.type === NODE_TYPES.IFELSE) {
-          branches = [
-            { id: 'yes', label: 'True Path' },
-            { id: 'no', label: 'False Path' }
-          ];
-        } else if (node.type === NODE_TYPES.SPLITFLOW) {
-          // Get branches from the plugin based on node properties
-          const plugin = pluginRegistry.getNodeType('splitflow');
-          branches = plugin.getBranches(node.properties);
-        }
-        
-        // Render a button for each branch endpoint
-        branches.forEach(branch => {
-          const branchEndpoint = getBranchEndpoint(node, branch.id);
-          if (!branchEndpoint) return;
-          
-          // Check if there's already a connection from this branch
-          const hasBranchConnection = workflowGraph.getOutgoingEdges(node.id)
-            .some(edge => edge.type === CONNECTION_TYPES.BRANCH && edge.label === branch.id);
-          
-          // Only render endpoint button if no connection exists
-          if (!hasBranchConnection) {
-            const buttonPosition = {
-              x: branchEndpoint.x,
-              y: branchEndpoint.y + 20  // Position below the branch endpoint
-            };
-            
-            // Determine button color based on node type
-            let buttonStyle = '';
-            if (node.type === NODE_TYPES.IFELSE) {
-              buttonStyle = branch.id === 'yes' ?
-                'bg-indigo-50 border-indigo-200 text-indigo-500 hover:bg-indigo-100' :
-                'bg-purple-50 border-purple-200 text-purple-500 hover:bg-purple-100';
-            } else if (node.type === NODE_TYPES.SPLITFLOW) {
-              buttonStyle = 'bg-green-50 border-green-200 text-green-500 hover:bg-green-100';
-            }
-            
-            // Add specialized branch endpoint button
-            buttons.push(
-              <div
-                key={`branch-endpoint-${node.id}-${branch.id}`}
-                className="absolute flex items-center justify-center"
-                style={{
-                  top: buttonPosition.y - 10,
-                  left: buttonPosition.x - 65,
-                  width: 130,
-                  zIndex: 5
-                }}
-              >
-                <button
-                  className={`flex items-center justify-center gap-1 ${buttonStyle} border px-3 py-1.5 rounded-full shadow-sm hover:shadow-md transition-all text-sm`}
-                  onClick={(e) => {
-                    // Get button position
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const buttonRect = {
-                      x: rect.left + rect.width / 2,
-                      y: rect.top + rect.height / 2,
-                      width: rect.width,
-                      height: rect.height
-                    };
-                    handleShowBranchEndpointMenu(node.id, branch.id, e, buttonRect);
-                  }}
-                >
-                  <Plus size={14} />
-                  <span>{branch.label}</span>
-                </button>
-              </div>
-            );
-          }
-        });
-      }
-    });
-    
-    return buttons;
-  }, [
-    workflowGraph,
-    menuState,
-    handleShowAddMenu,
-    handleShowBranchEdgeMenu,
-    handleShowBranchEndpointMenu,
-    calculateConnectionPoints,
-    calculateBranchConnectionPoints,
-    getBranchEndpoint
-  ]);
-  
+  // Remove renderAddNodeButtons method as it's now handled by AddNodeButtonRenderer component
+
   // Use a single rendering of menus
   const renderMenus = () => {
     const { activeNodeId, activeBranch, menuType } = menuState;
@@ -1386,7 +1106,13 @@ const renderConnections = useCallback(() => {
               style={{ zIndex: 0, overflow: "visible" }}
               preserveAspectRatio="none"
             >
-              {renderConnections()}
+              <ConnectionRenderer
+                workflowGraph={workflowGraph}
+                selectedNodeId={selectedNodeId}
+                pluginRegistry={pluginRegistry}
+                edgeInputYOffset={edgeInputYOffset}
+                edgeOutputYOffset={edgeOutputYOffset}
+              />
             </svg>
 
             {/* Workflow step nodes */}
@@ -1410,8 +1136,17 @@ const renderConnections = useCallback(() => {
               />
             ))}
 
-            {/* Add node buttons */}
-            {renderAddNodeButtons()}
+            {/* Replace renderAddNodeButtons() call with AddNodeButtonRenderer component */}
+            <AddNodeButtonRenderer
+              workflowGraph={workflowGraph}
+              menuState={menuState}
+              handleShowAddMenu={handleShowAddMenu}
+              handleShowBranchEdgeMenu={handleShowBranchEdgeMenu}
+              handleShowBranchEndpointMenu={handleShowBranchEndpointMenu}
+              pluginRegistry={pluginRegistry}
+              edgeInputYOffset={edgeInputYOffset}
+              edgeOutputYOffset={edgeOutputYOffset}
+            />
 
             {/* Render menus inside canvas if attached to canvas */}
             {MENU_PLACEMENT.ATTACH_TO_CANVAS && renderMenus()}
