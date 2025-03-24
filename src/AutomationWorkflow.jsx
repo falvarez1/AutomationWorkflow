@@ -19,6 +19,9 @@ import {
   UpdateNodeCommand
 } from './components/AutomationWorkflow/commands';
 
+// Import command utilities
+import { executeGraphCommand } from './components/AutomationWorkflow/utils/commandUtils';
+
 // Import the plugin registry and plugins
 import { pluginRegistry } from './components/AutomationWorkflow/plugins/registry';
 import { TriggerNodePlugin } from './components/AutomationWorkflow/plugins/TriggerNodePlugin';
@@ -516,60 +519,18 @@ const handleNodeHeightChange = useCallback((id, height) => {
       branchId
     );
     
-    commandManager.executeCommand({
-      execute: () => {
-        addNodeCommand.execute();
-        // Update the graph state after command execution
-        setWorkflowGraph(new Graph());
-        setWorkflowGraph(prevGraph => {
-          const newGraph = new Graph();
-          
-          // Copy all nodes from the updated graph
-          addNodeCommand.graph.getAllNodes().forEach(node => {
-            newGraph.addNode({ ...node });
-          });
-          
-          // Copy all edges from the updated graph
-          addNodeCommand.graph.getAllEdges().forEach(edge => {
-            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-          });
-          
-          return newGraph;
-        });
-        
+    // Execute command with commandUtils
+    executeGraphCommand(addNodeCommand, commandManager, setWorkflowGraph, {
+      onExecuteSuccess: () => {
         // Track the new node for animation
         setAnimatingNodes(prev => [...prev, newNode.id]);
         setTimeout(() => {
           setAnimatingNodes(prev => prev.filter(id => id !== newNode.id));
         }, 300);
-        
-        return true;
-      },
-      undo: () => {
-        addNodeCommand.undo();
-        // Update the graph state after undo
-        setWorkflowGraph(new Graph());
-        setWorkflowGraph(prevGraph => {
-          const newGraph = new Graph();
-          
-          // Copy all nodes from the updated graph
-          addNodeCommand.graph.getAllNodes().forEach(node => {
-            newGraph.addNode({ ...node });
-          });
-          
-          // Copy all edges from the updated graph
-          addNodeCommand.graph.getAllEdges().forEach(edge => {
-            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-          });
-          
-          return newGraph;
-        });
-        
-        return true;
       }
     });
     
-    // Replace with consolidated menu close
+    // Close menu
     handleCloseMenu();
   }, [workflowGraph, createNewNode, getBranchEndpoint, 
     standardVerticalSpacing, branchVerticalSpacing, 
@@ -607,60 +568,16 @@ const handleNodeHeightChange = useCallback((id, height) => {
   const handleDeleteNode = useCallback((nodeId) => {
     if (!nodeId) return;
     
-    // Create and execute delete command
+    // Create delete command
     const deleteNodeCommand = new DeleteNodeCommand(workflowGraph, nodeId);
     
-    commandManager.executeCommand({
-      execute: () => {
-        deleteNodeCommand.execute();
-        
-        // Update graph state after command execution
-        setWorkflowGraph(new Graph());
-        setWorkflowGraph(prevGraph => {
-          const newGraph = new Graph();
-          
-          // Copy all nodes from the updated graph
-          deleteNodeCommand.graph.getAllNodes().forEach(node => {
-            newGraph.addNode({ ...node });
-          });
-          
-          // Copy all edges from the updated graph
-          deleteNodeCommand.graph.getAllEdges().forEach(edge => {
-            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-          });
-          
-          return newGraph;
-        });
-        
+    // Execute command with commandUtils
+    executeGraphCommand(deleteNodeCommand, commandManager, setWorkflowGraph, {
+      onExecuteSuccess: () => {
         // Clear selected node if it was deleted
         if (selectedNodeId === nodeId) {
           setSelectedNodeId(null);
         }
-        
-        return true;
-      },
-      undo: () => {
-        deleteNodeCommand.undo();
-        
-        // Update graph state after undo
-        setWorkflowGraph(new Graph());
-        setWorkflowGraph(prevGraph => {
-          const newGraph = new Graph();
-          
-          // Copy all nodes from the updated graph
-          deleteNodeCommand.graph.getAllNodes().forEach(node => {
-            newGraph.addNode({ ...node });
-          });
-          
-          // Copy all edges from the updated graph
-          deleteNodeCommand.graph.getAllEdges().forEach(edge => {
-            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-          });
-          
-          return newGraph;
-        });
-        
-        return true;
       }
     });
   }, [workflowGraph, selectedNodeId]);
@@ -747,7 +664,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
     
     // Only create a command if the position actually changed
     if (dragStartPosition.x !== currentPosition.x || dragStartPosition.y !== currentPosition.y) {
-      // Create and execute a move command
+      // Create a move command
       const moveNodeCommand = new MoveNodeCommand(
         workflowGraph,
         id,
@@ -755,54 +672,8 @@ const handleNodeHeightChange = useCallback((id, height) => {
         { ...currentPosition }
       );
       
-      commandManager.executeCommand({
-        execute: () => {
-          moveNodeCommand.execute();
-          
-          // Update graph state after command execution
-          setWorkflowGraph(new Graph());
-          setWorkflowGraph(prevGraph => {
-            const newGraph = new Graph();
-            
-            // Copy all nodes from the updated graph
-            moveNodeCommand.graph.getAllNodes().forEach(node => {
-              newGraph.addNode({ ...node });
-            });
-            
-            // Copy all edges from the updated graph
-            moveNodeCommand.graph.getAllEdges().forEach(edge => {
-              newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-            });
-            
-            return newGraph;
-          });
-          
-          return true;
-        },
-        undo: () => {
-          moveNodeCommand.undo();
-          
-          // Update graph state after undo
-          setWorkflowGraph(new Graph());
-          setWorkflowGraph(prevGraph => {
-            const newGraph = new Graph();
-            
-            // Copy all nodes from the updated graph
-            moveNodeCommand.graph.getAllNodes().forEach(node => {
-              newGraph.addNode({ ...node });
-            });
-            
-            // Copy all edges from the updated graph
-            moveNodeCommand.graph.getAllEdges().forEach(edge => {
-              newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-            });
-            
-            return newGraph;
-          });
-          
-          return true;
-        }
-      });
+      // Execute command with commandUtils
+      executeGraphCommand(moveNodeCommand, commandManager, setWorkflowGraph);
     }
     
     // Reset the start position
@@ -829,54 +700,8 @@ const handleNodeHeightChange = useCallback((id, height) => {
       }
     );
     
-    commandManager.executeCommand({
-      execute: () => {
-        updateCommand.execute();
-        
-        // Update graph state after command execution
-        setWorkflowGraph(new Graph());
-        setWorkflowGraph(prevGraph => {
-          const newGraph = new Graph();
-          
-          // Copy all nodes from the updated graph
-          updateCommand.graph.getAllNodes().forEach(node => {
-            newGraph.addNode({ ...node });
-          });
-          
-          // Copy all edges from the updated graph
-          updateCommand.graph.getAllEdges().forEach(edge => {
-            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-          });
-          
-          return newGraph;
-        });
-        
-        return true;
-      },
-      undo: () => {
-        updateCommand.undo();
-        
-        // Update graph state after undo
-        setWorkflowGraph(new Graph());
-        setWorkflowGraph(prevGraph => {
-          const newGraph = new Graph();
-          
-          // Copy all nodes from the updated graph
-          updateCommand.graph.getAllNodes().forEach(node => {
-            newGraph.addNode({ ...node });
-          });
-          
-          // Copy all edges from the updated graph
-          updateCommand.graph.getAllEdges().forEach(edge => {
-            newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-          });
-          
-          return newGraph;
-        });
-        
-        return true;
-      }
-    });
+    // Execute command with commandUtils
+    executeGraphCommand(updateCommand, commandManager, setWorkflowGraph);
   }, [workflowGraph]);
 
   // Consolidated function to handle all menu interactions
