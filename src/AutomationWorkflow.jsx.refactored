@@ -1,8 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
+  Send,
+  Plus,
+  Hexagon,
+  Zap,
   ZoomIn,
   ZoomOut,
   Maximize,
+  GitBranch,
+  GitMerge,
   RotateCcw,
   RotateCw,
   Grid
@@ -71,6 +77,7 @@ import {
 // Import the refactored menu system
 import { 
   menuFactory, 
+  menuManager, 
   MenuProvider, 
   useMenuSystem,
   NodeTypeMenu, 
@@ -141,8 +148,8 @@ const AutomationWorkflow = ({
   const branchRightOffset = nodePlacementOptions.branchRightOffset || BRANCH_RIGHT_OFFSET;
 
   // State for selection and UI interactions
+  const [activeTab, setActiveTab] = useState('flow');
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [dragStartPosition, setDragStartPosition] = useState(null);
   
   // Convert graph nodes to array for rendering compatibility
   const workflowSteps = useMemo(() => {
@@ -155,6 +162,7 @@ const AutomationWorkflow = ({
   }, [workflowGraph, selectedNodeId]);
 
   // Configurable offsets
+  const [buttonYOffset] = useState(BUTTON_Y_OFFSET);
   const [edgeInputYOffset] = useState(EDGE_INPUT_Y_OFFSET);
   const [edgeOutputYOffset] = useState(EDGE_OUTPUT_Y_OFFSET);
   
@@ -1184,7 +1192,7 @@ const AutomationWorkflow = ({
         </pattern>
       </defs>
     );
-  }, [showGrid, transform.scale, gridColor, scaledGridDotSize]);
+  }, [showGrid, transform.scale, gridColor, GRID_SIZE, scaledGridDotSize]);
   
   // Render toolbar controls
   const renderToolbar = () => (
