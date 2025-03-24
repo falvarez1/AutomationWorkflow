@@ -74,6 +74,12 @@ import {
   MENU_PLACEMENT
 } from './components/AutomationWorkflow/constants';
 
+// Add imports for the services at the top of the file
+import { workflowService } from './services/workflowService';
+
+// Add import at the top
+import ExecuteWorkflowDialog from './components/AutomationWorkflow/components/ExecuteWorkflowDialog';
+
 // Register node types
 pluginRegistry.registerNodeType(TriggerNodePlugin);
 pluginRegistry.registerNodeType(ControlNodePlugin);
@@ -89,8 +95,11 @@ pluginRegistry.registerPropertyControl(CheckboxControl);
 // Main Automation Workflow Component
 const AutomationWorkflow = ({ 
   initialWorkflowSteps = INITIAL_WORKFLOW_STEPS,
-  gridOptions = {}, // Allow grid options to be passed as props
-  nodePlacementOptions = {} // Add node placement options
+  workflowId = null, // Add workflowId prop for loading from backend
+  gridOptions = {}, 
+  nodePlacementOptions = {},
+  readonly = false, // Add readonly mode
+  onExecutionStatusChange = null // Callback for execution status changes
 }) => {
   // Canvas pan and zoom state
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: .8 });
@@ -764,9 +773,243 @@ const handleNodeHeightChange = useCallback((id, height) => {
     handleShowMenu(nodeId, 'branchEdge', branchId, e, buttonRect);
   }, [handleShowMenu]);
   
+  // Add state for workflow metadata and execution status
+  const [workflowMetadata, setWorkflowMetadata] = useState({
+    id: workflowId,
+    name: 'New Workflow',
+    description: '',
+    lastModified: null,
+    status: 'draft'
+  });
+  
+  const [executionStatus, setExecutionStatus] = useState({
+    isExecuting: false,
+    currentNodeId: null,
+    progress: 0,
+    startTime: null,
+    errors: []
+  });
+
+  // Add state for execution dialog
+  const [showExecuteDialog, setShowExecuteDialog] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Get workflow input schema from trigger node
+  const getWorkflowInputSchema = useCallback(() => {
+    // Find trigger node (typically the first node)
+    const triggerNode = workflowSteps.find(node => node.type === NODE_TYPES.TRIGGER);
+    
+    if (!triggerNode) return [];
+    
+    // Get input schema from the trigger node's plugin
+    const triggerPlugin = pluginRegistry.getNodeType(triggerNode.type);
+    return triggerPlugin.getInputSchema ? 
+      triggerPlugin.getInputSchema(triggerNode.properties) : [];
+  }, [workflowSteps]);
+
+  // Initialize SignalR when component mounts
+  useEffect(() => {
+    const initBackendServices = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Monitor connection status
+        const removeStatusListener = workflowService.onConnectionStatusChange((status, error) => {
+          setConnectionStatus(status);
+          if (status === 'error') {
+            console.error('Connection error:', error);
+            // Could show a notification here
+          }
+        });
+        
+        await workflowService.init();
+        console.log('Workflow service initialized');
+        
+        // Register for execution updates
+        const removeExecutionListener = workflowService.onExecutionUpdate(update => {
+          setExecutionStatus(prev => ({
+            ...prev,
+            ...update
+          }));
+          
+          if (onExecutionStatusChange) {
+            onExecutionStatusChange(update);
+          }
+        });
+        
+        // Register for node status updates
+        const removeNodeStatusListener = workflowService.onNodeStatusUpdate(update => {
+          // Update node status in the graph (e.g., highlighting active nodes)
+          if (update.nodeId) {
+            setWorkflowGraph(prev => {
+              const newGraph = new Graph();
+              
+              prev.getAllNodes().forEach(node => {
+                const nodeStatus = node.id === update.nodeId 
+                  ? update.status 
+                  : node.status;
+                
+                newGraph.addNode({
+                  ...node,
+                  status: nodeStatus,
+                  statusData: node.id === update.nodeId 
+                    ? update.data || {}
+                    : node.statusData
+                });
+              });
+              
+              prev.getAllEdges().forEach(edge => {
+                newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+              });
+              
+              return newGraph;
+            });
+          }
+        });
+        
+        // Load workflow from backend if ID is provided
+        if (workflowId) {
+          await loadWorkflowFromBackend(workflowId);
+        }
+        
+        return () => {
+          removeStatusListener();
+          removeExecutionListener();
+          removeNodeStatusListener();
+        };
+      } catch (error) {
+        console.error('Failed to initialize workflow service:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    initBackendServices();
+  }, [workflowId, onExecutionStatusChange]);
+
+  // Function to load workflow from backend
+  const loadWorkflowFromBackend = async (id) => {
+    try {
+      setIsLoading(true);
+      const workflow = await workflowService.getWorkflow(id);
+      
+      // Update workflow metadata
+      setWorkflowMetadata({
+        id: workflow.id,
+        name: workflow.name,
+        description: workflow.description,
+        lastModified: workflow.lastModified,
+        status: workflow.status
+      });
+      
+      // Convert backend workflow to graph
+      if (workflow.steps && workflow.steps.length > 0) {
+        setWorkflowGraph(Graph.fromWorkflowSteps(workflow.steps));
+      }
+    } catch (error) {
+      console.error('Failed to load workflow:', error);
+      // Handle error (show notification, etc.)
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to save workflow to backend
+  const saveWorkflowToBackend = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Convert graph to backend workflow format
+      const workflow = {
+        id: workflowMetadata.id,
+        name: workflowMetadata.name,
+        description: workflowMetadata.description,
+        steps: workflowGraph.toWorkflowSteps()
+      };
+      
+      const savedWorkflow = await workflowService.saveWorkflow(workflow);
+      
+      // Update local state with saved data
+      setWorkflowMetadata(prev => ({
+        ...prev,
+        id: savedWorkflow.id,
+        lastModified: savedWorkflow.lastModified
+      }));
+      
+      // Show success notification
+      console.log('Workflow saved successfully');
+      return savedWorkflow;
+    } catch (error) {
+      console.error('Failed to save workflow:', error);
+      // Handle error (show notification, etc.)
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Modify execute function to show dialog instead of executing directly
+  const handleShowExecuteDialog = () => {
+    setShowExecuteDialog(true);
+  };
+
+  // Function to execute workflow
+  const executeWorkflow = async (inputs = {}) => {
+    try {
+      setIsLoading(true);
+      
+      if (!workflowMetadata.id) {
+        // Save workflow first if it doesn't have an ID
+        const savedWorkflow = await saveWorkflowToBackend();
+        await workflowService.executeWorkflow(savedWorkflow.id, inputs);
+      } else {
+        await workflowService.executeWorkflow(workflowMetadata.id, inputs);
+      }
+      
+      // Update local execution status
+      setExecutionStatus({
+        isExecuting: true,
+        currentNodeId: null,
+        progress: 0,
+        startTime: new Date(),
+        errors: []
+      });
+      
+      // Switch to execution tab to show progress
+      setActiveTab('execution');
+    } catch (error) {
+      console.error('Failed to execute workflow:', error);
+      // Handle error (show notification, etc.)
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
+      {/* Connection status indicator */}
+      {connectionStatus !== 'connected' && (
+        <div className={`text-white text-sm py-1 px-4 text-center ${
+          connectionStatus === 'reconnecting' ? 'bg-yellow-500' :
+          connectionStatus === 'error' ? 'bg-red-500' : 'bg-blue-500'
+        }`}>
+          {connectionStatus === 'reconnecting' ? 'Reconnecting to server...' :
+           connectionStatus === 'error' ? 'Connection error. Please refresh the page.' :
+           'Connecting to server...'}
+        </div>
+      )}
+      
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded-lg shadow-lg">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      )}
+    
       {/* Tab navigation */}
       <div className="flex border-b border-gray-200 bg-white shadow-sm">
         <button
@@ -779,13 +1022,56 @@ const handleNodeHeightChange = useCallback((id, height) => {
         >
           Workflow Editor
         </button>
-        {/* Additional tabs could be added here */}
+        
+        {/* Add an execution tab */}
+        <button
+          className={`px-5 py-4 text-sm font-medium focus:outline-none ${
+            activeTab === 'execution'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('execution')}
+        >
+          Execution
+        </button>
+        
+        {/* Workflow metadata display */}
+        <div className="ml-auto flex items-center pr-4">
+          <span className="text-sm text-gray-500 mr-4">
+            {workflowMetadata.name}
+            {workflowMetadata.lastModified && 
+              ` • Last saved: ${new Date(workflowMetadata.lastModified).toLocaleString()}`}
+          </span>
+          
+          {/* Save button */}
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none"
+            onClick={saveWorkflowToBackend}
+            disabled={readonly || connectionStatus !== 'connected'}
+          >
+            Save
+          </button>
+          
+          {/* Execute button - now opens dialog */}
+          <button
+            className={`ml-2 px-4 py-2 rounded focus:outline-none ${
+              executionStatus.isExecuting || connectionStatus !== 'connected'
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
+            onClick={handleShowExecuteDialog}
+            disabled={executionStatus.isExecuting || readonly || connectionStatus !== 'connected'}
+          >
+            {executionStatus.isExecuting ? 'Executing...' : 'Execute'}
+          </button>
+        </div>
       </div>
 
-      {/* Main content area */}
+      {/* Main content area - add condition to show execution view */}
       <div className="flex-grow flex overflow-hidden">
-        {/* Canvas area */}
-        <div
+        {activeTab === 'flow' ? (
+          /* Existing canvas area */
+          <div
           ref={canvasRef}
           id="workflow-canvas"
           className="relative flex-grow overflow-hidden"
@@ -945,8 +1231,58 @@ const handleNodeHeightChange = useCallback((id, height) => {
             />
           )}
         </div>
-
-        {/* Properties panel */}
+        ) : (
+          /* Execution view */
+          <div className="p-6 w-full overflow-auto">
+            <h2 className="text-xl font-semibold mb-4">Workflow Execution</h2>
+            
+            {executionStatus.isExecuting ? (
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex justify-between mb-4">
+                  <span className="font-medium">Status: Running</span>
+                  <span className="text-gray-500">
+                    Started: {executionStatus.startTime && new Date(executionStatus.startTime).toLocaleTimeString()}
+                  </span>
+                </div>
+                
+                <div className="mb-4">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-blue-600 h-2.5 rounded-full" 
+                      style={{ width: `${executionStatus.progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+                
+                {executionStatus.currentNodeId && (
+                  <div className="text-sm text-gray-600">
+                    Executing node: {
+                      workflowGraph.getNode(executionStatus.currentNodeId)?.title || 
+                      executionStatus.currentNodeId
+                    }
+                  </div>
+                )}
+                
+                {executionStatus.errors.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="text-red-600 font-medium mb-2">Errors</h3>
+                    <ul className="bg-red-50 p-3 rounded border border-red-200">
+                      {executionStatus.errors.map((error, index) => (
+                        <li key={index} className="text-red-700">{error.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow p-4 text-center">
+                <p className="text-gray-500">No active execution. Click "Execute" to run this workflow.</p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Properties panel - keep existing code */}
         {selectedNode && (
           <div className="w-1/3 max-w-md border-l border-gray-200 bg-white overflow-y-auto animate-slideIn">
             <div className="p-6"> 
@@ -960,6 +1296,14 @@ const handleNodeHeightChange = useCallback((id, height) => {
           </div>
         )}
       </div>
+      
+      {/* Execute workflow dialog */}
+      <ExecuteWorkflowDialog
+        isOpen={showExecuteDialog}
+        onClose={() => setShowExecuteDialog(false)}
+        onExecute={executeWorkflow}
+        workflowInputSchema={getWorkflowInputSchema()}
+      />
     </div>
   );
 };

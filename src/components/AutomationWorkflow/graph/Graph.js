@@ -267,32 +267,29 @@ class Graph {
    * @returns {Array} Array of workflow step objects
    */
   toWorkflowSteps() {
-    const steps = [];
+    const nodes = this.getAllNodes();
+    const edges = this.getAllEdges();
     
-    this.getAllNodes().forEach(node => {
-      const outgoingEdges = this.getOutgoingEdges(node.id);
+    // Convert to backend format
+    return nodes.map(node => {
+      // Find connections where this node is the source
+      const outgoingConnections = edges
+        .filter(edge => edge.sourceId === node.id)
+        .map(edge => ({
+          targetId: edge.targetId,
+          type: edge.type,
+          branchId: edge.branchId || null
+        }));
       
-      const step = {
-        ...node,
-        outgoingConnections: {},
-        branchConnections: node.type === 'ifelse' || node.type === 'splitflow' ? {} : undefined
+      // Return formatted node with connections
+      return {
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        properties: node.properties || {},
+        connections: outgoingConnections
       };
-      
-      // Convert edges back to the old connection format
-      outgoingEdges.forEach(edge => {
-        if (edge.type === 'default') {
-          step.outgoingConnections.default = { targetNodeId: edge.targetId };
-        } else if (edge.type === 'branch' && edge.label) {
-          if (step.branchConnections) {
-            step.branchConnections[edge.label] = { targetNodeId: edge.targetId };
-          }
-        }
-      });
-      
-      steps.push(step);
     });
-    
-    return steps;
   }
 }
 

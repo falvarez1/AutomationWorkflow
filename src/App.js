@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './App.css';
 import './index.css';
 import AutomationWorkflow from './AutomationWorkflow';
-import SimpleValidationTest from './SimpleValidationTest';
+import SimpleValidationTest from './tests/SimpleValidationTest';
 
 function App() {
   const [showTestComponent, setShowTestComponent] = useState(false);
