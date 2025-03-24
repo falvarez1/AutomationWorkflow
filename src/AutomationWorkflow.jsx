@@ -139,6 +139,11 @@ const AutomationWorkflow = ({
   const [activeBranchButton, setActiveBranchButton] = useState(null);
   const [dragStartPosition, setDragStartPosition] = useState(null);
   
+  // Consolidated menu close handlers
+  const handleCloseMenu = useCallback(() => {
+    setMenuState({ activeNodeId: null, activeBranch: null, position: null, menuType: null });
+  }, []);
+
   // Consolidated state for all menu handling
   const [menuState, setMenuState] = useState({
     activeNodeId: null,
@@ -204,27 +209,24 @@ const AutomationWorkflow = ({
     // Default return for other node types
     return { x: startX, y: startY };
   }, []);
-  // State to track menu anchors
-  const [menuAnchorPosition, setMenuAnchorPosition] = useState(null);
-  const [branchMenuAnchorPosition, setBranchMenuAnchorPosition] = useState(null);
-  
-  // Handler for node height changes
-  const handleNodeHeightChange = useCallback((id, height) => {
-    setWorkflowGraph(prevGraph => {
-      const newGraph = new Graph();
-      
-      // Copy all nodes and edges
-      prevGraph.getAllNodes().forEach(node => {
-        newGraph.addNode(node.id === id ? { ...node, height } : node);
-      });
-      
-      prevGraph.getAllEdges().forEach(edge => {
-        newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-      });
-      
-      return newGraph;
+
+// Handler for node height changes
+const handleNodeHeightChange = useCallback((id, height) => {
+  setWorkflowGraph(prevGraph => {
+    const newGraph = new Graph();
+    
+    // Copy all nodes and edges
+    prevGraph.getAllNodes().forEach(node => {
+      newGraph.addNode(node.id === id ? { ...node, height } : node);
     });
-  }, []);
+    
+    prevGraph.getAllEdges().forEach(edge => {
+      newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+    });
+    
+    return newGraph;
+  });
+}, []);
 
   // Close menus when clicking outside or on another node
   useEffect(() => {
@@ -264,7 +266,7 @@ const AutomationWorkflow = ({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [menuState, showNodeMenu]);
+  }, [menuState, showNodeMenu, handleCloseMenu]);
   
   // Add a ref to track if we just clicked a node
   const justClickedNodeRef = useRef(false);
@@ -1000,12 +1002,7 @@ const AutomationWorkflow = ({
       }
     }
   }, [menuState, workflowGraph, transform, buttonYOffset, getBranchEndpoint]);
-  
-  // Consolidated menu close handlers
-  const handleCloseMenu = useCallback(() => {
-    setMenuState({ activeNodeId: null, activeBranch: null, position: null, menuType: null });
-  }, []);
-  
+   
   // This function calculates the connection endpoints
   const calculateConnectionPoints = useCallback((sourceNode, targetNode) => {
     if (!sourceNode || !targetNode) return { startPos: null, endPos: null };
@@ -1320,91 +1317,6 @@ const renderConnections = useCallback(() => {
     getBranchEndpoint
   ]);
   
-  // Remove the old menu rendering methods (renderActiveAddNodeMenu and renderActiveBranchEndpointMenu)
-  // as we're now using the dedicated components
-
-  // Menu handlers
-  const handleCloseNodeMenu = useCallback(() => {
-    setActiveAddButtonNodeId(null);
-  }, []);
-  
-  const handleCloseBranchMenu = useCallback(() => {
-    setActiveBranchButton(null);
-  }, []);
-  
-  // Calculate node menu position
-  const getNodeMenuPosition = useCallback(() => {
-    if (!activeAddButtonNodeId) return { x: 0, y: 0 };
-    
-    const sourceNode = workflowGraph.getNode(activeAddButtonNodeId);
-    if (!sourceNode) return { x: 0, y: 0 };
-    
-    if (MENU_PLACEMENT.ATTACH_TO_CANVAS) {
-      // Position menu in graph coordinates (part of the canvas transform)
-      if (menuAnchorPosition) {
-        // Convert screen coords to graph coords
-        return {
-          x: (menuAnchorPosition.x - transform.x) / transform.scale,
-          y: (menuAnchorPosition.y + menuAnchorPosition.height/2 + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET - transform.y) / transform.scale
-        };
-      } else {
-        return {
-          x: sourceNode.position.x + (DEFAULT_NODE_WIDTH / 2),
-          y: sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + buttonYOffset + BUTTON_SIZE + 10
-        };
-      }
-    } else {
-      // Fixed position (outside transform)
-      if (menuAnchorPosition) {
-        return menuAnchorPosition;
-      } else {
-        // Convert node position to screen coordinates
-        return {
-          x: sourceNode.position.x * transform.scale + transform.x + (DEFAULT_NODE_WIDTH / 2) * transform.scale,
-          y: (sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + buttonYOffset + BUTTON_SIZE + 10) * transform.scale + transform.y
-        };
-      }
-    }
-  }, [activeAddButtonNodeId, workflowGraph, menuAnchorPosition, transform, buttonYOffset]);
-  
-  // Calculate branch menu position
-  const getBranchMenuPosition = useCallback(() => {
-    if (!activeBranchButton) return { x: 0, y: 0 };
-    
-    const { nodeId, branchId } = activeBranchButton;
-    const sourceNode = workflowGraph.getNode(nodeId);
-    if (!sourceNode) return { x: 0, y: 0 };
-    
-    if (MENU_PLACEMENT.ATTACH_TO_CANVAS) {
-      // Position menu relative to the node in graph coordinates
-      if (branchMenuAnchorPosition) {
-        // Convert screen coords to graph coords
-        return {
-          x: (branchMenuAnchorPosition.x - transform.x) / transform.scale,
-          y: (branchMenuAnchorPosition.y + branchMenuAnchorPosition.height/2 + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET - transform.y) / transform.scale
-        };
-      } else {
-        const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
-        return {
-          x: branchEndpoint.x,
-          y: branchEndpoint.y + BUTTON_SIZE + 10
-        };
-      }
-    } else {
-      // Fixed position (outside transform)
-      if (branchMenuAnchorPosition) {
-        return branchMenuAnchorPosition;
-      } else {
-        const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
-        // Convert branch endpoint position to screen coordinates
-        return {
-          x: branchEndpoint.x * transform.scale + transform.x,
-          y: (branchEndpoint.y + BUTTON_SIZE + 10) * transform.scale + transform.y
-        };
-      }
-    }
-  }, [activeBranchButton, workflowGraph, branchMenuAnchorPosition, transform, buttonYOffset, getBranchEndpoint]);
-
   // Use a single rendering of menus
   const renderMenus = () => {
     const { activeNodeId, activeBranch, menuType } = menuState;
