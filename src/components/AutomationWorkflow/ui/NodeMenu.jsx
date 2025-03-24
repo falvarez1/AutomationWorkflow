@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { 
   Send, 
   Zap, 
@@ -6,7 +6,8 @@ import {
   GitBranch, 
   GitMerge
 } from 'lucide-react';
-import { CONNECTION_TYPES, NODE_TYPES, MENU_PLACEMENT } from '../constants';
+import { CONNECTION_TYPES, NODE_TYPES } from '../constants';
+import BaseMenu from './BaseMenu';
 
 const NodeMenu = ({ 
   isOpen, 
@@ -18,47 +19,6 @@ const NodeMenu = ({
   buttonYOffset,
   onAddNode 
 }) => {
-  // Auto-hide timer state
-  const menuHideTimerRef = useRef(null);
-  const [isMouseOver, setIsMouseOver] = useState(false);
-  
-  // Clear and start timer functions
-  const clearHideTimer = () => {
-    if (menuHideTimerRef.current) {
-      clearTimeout(menuHideTimerRef.current);
-      menuHideTimerRef.current = null;
-    }
-  };
-  
-  const startHideTimer = () => {
-    clearHideTimer();
-      menuHideTimerRef.current = setTimeout(() => {
-        onClose();
-      }, 3000); // Use a timeout constant
-  };
-  
-  // Mouse event handlers
-  const handleMouseEnter = () => {
-    clearHideTimer();
-    setIsMouseOver(true);
-  };
-  
-  const handleMouseLeave = () => {
-    setIsMouseOver(false);
-    startHideTimer();
-  };
-  
-  // Start/clear timer when menu opens/closes
-  useEffect(() => {
-    if (isOpen) {
-      startHideTimer();
-    } else {
-      clearHideTimer();
-    }
-    
-    return () => clearHideTimer();
-  }, [isOpen]);
-  
   // Handle node selection with branch info
   const handleSelectNodeType = (nodeType) => {
     const connectionType = activeBranchInfo ? CONNECTION_TYPES.BRANCH : CONNECTION_TYPES.DEFAULT;
@@ -67,36 +27,12 @@ const NodeMenu = ({
     onAddNode(sourceNodeId, nodeType, connectionType, branchId);
   };
   
-  if (!isOpen) return null;
-  
-  // Calculate position based on attachment mode
-  let menuStyle = {};
-  
-  if (MENU_PLACEMENT.ATTACH_TO_CANVAS) {
-    // Position within canvas transform
-    menuStyle = {
-      left: `${menuPosition.x}px`,
-      top: `${menuPosition.y}px`,
-      transform: 'translateX(-50%)',
-      zIndex: MENU_PLACEMENT.MENU_Z_INDEX
-    };
-  } else {
-    // Fixed position (outside transform)
-    menuStyle = {
-      left: menuPosition.x,
-      top: menuPosition.y + MENU_PLACEMENT.MENU_VERTICAL_OFFSET,
-      transform: 'translateX(-50%)',
-      position: 'fixed',
-      zIndex: MENU_PLACEMENT.MENU_Z_INDEX
-    };
-  }
-  
   return (
-    <div 
-      className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 node-menu absolute"
-      style={menuStyle}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+    <BaseMenu
+      isOpen={isOpen}
+      onClose={onClose}
+      menuPosition={menuPosition}
+      transform={transform}
     >
       <div className="flex space-x-2">
         <button
@@ -137,7 +73,7 @@ const NodeMenu = ({
           Split Flow
         </button>
       </div>
-    </div>
+    </BaseMenu>
   );
 };
 

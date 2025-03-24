@@ -1,14 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
-  Send,
   Plus,
-  Hexagon,
-  Zap,
   ZoomIn,
   ZoomOut,
   Maximize,
-  GitBranch,
-  GitMerge,
   RotateCcw,
   RotateCw,
   Grid
@@ -57,7 +52,6 @@ import {
   GRID_SIZE,
   ZOOM_MIN,
   ZOOM_MAX,
-  AUTO_HIDE_TIMEOUT,
   BUTTON_SIZE,
   EDGE_INPUT_Y_OFFSET,
   EDGE_OUTPUT_Y_OFFSET,
