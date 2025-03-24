@@ -16,11 +16,15 @@ import {
   AddNodeCommand,
   MoveNodeCommand,
   DeleteNodeCommand,
-  UpdateNodeCommand
+  UpdateNodeCommand,
+  UpdateNodeHeightCommand,
+  DuplicateNodeCommand
 } from './components/AutomationWorkflow/commands';
 
 // Import command utilities
 import { executeGraphCommand } from './components/AutomationWorkflow/utils/commandUtils';
+import { BranchUtils } from './components/AutomationWorkflow/utils/BranchUtils';
+import { animationManager } from './components/AutomationWorkflow/utils/AnimationManager';
 
 // Import the plugin registry and plugins
 import { pluginRegistry } from './components/AutomationWorkflow/plugins/registry';
@@ -172,45 +176,11 @@ const AutomationWorkflow = ({
   
   // Helper function to calculate branch endpoints for ifelse and splitflow nodes
   const getBranchEndpoint = useCallback((node, branchId) => {
-    const startX = node.position.x + (DEFAULT_NODE_WIDTH / 2);
-    const startY = node.position.y + (node.height || DEFAULT_NODE_HEIGHT);
-    
-    if (node.type === NODE_TYPES.IFELSE) {
-      // For IFELSE nodes, we only have two valid branch IDs: 'yes' and 'no'
-      if (branchId === 'yes') {
-        return { x: node.position.x - 65 + (DEFAULT_NODE_WIDTH / 2), y: startY + 40 };
-      } else if (branchId === 'no') {
-        return { x: node.position.x + 65 + (DEFAULT_NODE_WIDTH / 2), y: startY + 40 };
-      } else {
-        // Return null for invalid branch IDs to prevent unwanted buttons
-        return null;
-      }
-    } else if (node.type === NODE_TYPES.SPLITFLOW) {
-      // Get all branches for this split flow node
-      const branches = pluginRegistry.getNodeType('splitflow').getBranches(node.properties);
-      const index = branches.findIndex(b => b.id === branchId);
-      
-      if (index === -1) {
-        return null; // Invalid branch ID
-      }
-      
-      // Get the total number of branches to determine spacing
-      const totalBranches = branches.length;
-      
-      // Calculate spacing between branches
-      // For 2 branches: positions at -65 and +65 (similar to IfElse)
-      // For 3 branches: positions at -120, 0, and +120
-      const spacing = totalBranches === 2 ? 130 : 120;
-      
-      // Calculate position based on index and total branches
-      const startPosition = -(spacing * (totalBranches - 1)) / 2;
-      const xOffset = startPosition + (index * spacing);
-      
-      return { x: startX + xOffset, y: startY + 40 };
-    }
-    
-    // Default return for other node types
-    return { x: startX, y: startY };
+    return BranchUtils.getBranchEndpoint(node, branchId, {
+      DEFAULT_NODE_WIDTH,
+      DEFAULT_NODE_HEIGHT,
+      BRANCH_VERTICAL_SPACING: 40
+    });
   }, []);
 
 // Handler for node height changes
@@ -623,7 +593,26 @@ const handleNodeHeightChange = useCallback((id, height) => {
           handleDeleteNode(id);
           return;
         case 'duplicate':
-          // Duplicate functionality could be added here
+          // Implement duplicate functionality
+          const duplicateCommand = new DuplicateNodeCommand(
+            workflowGraph,
+            id,
+            generateUniqueId,
+            50, // X offset
+            50  // Y offset
+          );
+          
+          executeGraphCommand(duplicateCommand, commandManager, setWorkflowGraph, {
+            onExecuteSuccess: (result) => {
+              if (result && duplicateCommand.newNodeId) {
+                // Start animation for the new node
+                animationManager.startAnimation(
+                  duplicateCommand.newNodeId, 
+                  'nodeAdd'
+                );
+              }
+            }
+          });
           return;
         case 'edit':
           // Already handled by selecting the node
@@ -642,14 +631,12 @@ const handleNodeHeightChange = useCallback((id, height) => {
     setTimeout(() => {
       justClickedNodeRef.current = false;
     }, 200);
-  }, [handleDeleteNode]);
+  }, [handleDeleteNode, workflowGraph, generateUniqueId]);
   
   // Handle node drag with grid snapping
   const handleNodeDrag = useCallback((id, x, y) => {
-    // Apply grid snapping if enabled
     let newX = x;
     let newY = y;
-    
     if (snapToGrid) {
       newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
       newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
@@ -676,11 +663,15 @@ const handleNodeHeightChange = useCallback((id, height) => {
       return newGraph;
     });
   }, [snapToGrid]);
-  
+
   // Handle node drag start
   const handleNodeDragStart = useCallback((id, position) => {
     // Save the start position for the move command
     setDragStartPosition({ ...position });
+    
+    // Set the currently dragging node ID to prevent canvas panning
+    // when dragging a node
+    justClickedNodeRef.current = true;
   }, []);
   
   // Handle node drag end
@@ -690,7 +681,11 @@ const handleNodeHeightChange = useCallback((id, height) => {
     const node = workflowGraph.getNode(id);
     if (!node) return;
     
-    const currentPosition = node.position;
+    // Get final position from the temp drag position we stored
+    const currentPosition = node._currentDragPosition || node.position;
+    
+    // Reset the dragging flag
+    justClickedNodeRef.current = false;
     
     // Only create a command if the position actually changed
     if (dragStartPosition.x !== currentPosition.x || dragStartPosition.y !== currentPosition.y) {
@@ -704,12 +699,28 @@ const handleNodeHeightChange = useCallback((id, height) => {
       
       // Execute command with commandUtils
       executeGraphCommand(moveNodeCommand, commandManager, setWorkflowGraph);
+    } else {
+      // If position didn't change, ensure the graph state is updated with the final position
+      // This handles the case where the drag was cancelled or didn't result in movement
+      setWorkflowGraph(prevGraph => {
+        const newGraph = new Graph();
+        
+        prevGraph.getAllNodes().forEach(node => {
+          newGraph.addNode(node);
+        });
+        
+        prevGraph.getAllEdges().forEach(edge => {
+          newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+        });
+        
+        return newGraph;
+      });
     }
     
     // Reset the start position
     setDragStartPosition(null);
   }, [workflowGraph, dragStartPosition]);
-  
+
   // Handle node property updates
   const handleUpdateNodeProperty = useCallback((nodeId, propertyId, value) => {
     if (!nodeId) return;
@@ -823,7 +834,9 @@ const handleNodeHeightChange = useCallback((id, height) => {
           }
         });
         
-        await workflowService.init();
+
+        // temporarily commented out
+      //  await workflowService.init();
         console.log('Workflow service initialized');
         
         // Register for execution updates
@@ -1128,9 +1141,10 @@ const handleNodeHeightChange = useCallback((id, height) => {
                 onDrag={handleNodeDrag}
                 onDragEnd={handleNodeDragEnd}
                 onHeightChange={handleNodeHeightChange}
-                isNew={step.isNew || animatingNodes.includes(step.id)}
+                isNew={step.isNew || animationManager.isAnimating(step.id)}
                 isSelected={selectedNodeId === step.id}
                 contextMenuConfig={step.contextMenuConfig}
+                className="draggable-node"
               />
             ))}
 

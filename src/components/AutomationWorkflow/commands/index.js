@@ -15,6 +15,9 @@ import {
   UpdateEdgeCommand
 } from './GraphCommands';
 
+import { UpdateNodeHeightCommand } from './UpdateNodeHeightCommand';
+import { DuplicateNodeCommand } from './DuplicateNodeCommand';
+
 // Export with renamed original commands for backwards compatibility
 export {
   Command,
@@ -26,6 +29,8 @@ export {
   DeleteNodeCommand,
   UpdateNodeCommand,
   UpdateEdgeCommand,
+  UpdateNodeHeightCommand,
+  DuplicateNodeCommand,
   
   // Original commands (renamed for backwards compatibility)
   OriginalAddNodeCommand,
