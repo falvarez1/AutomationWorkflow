@@ -36,6 +36,8 @@ import { SplitFlowNodePlugin } from './components/AutomationWorkflow/plugins/Spl
 import WorkflowStep from './components/AutomationWorkflow/ui/WorkflowStep';
 import ConnectorLine from './components/AutomationWorkflow/ui/ConnectorLine';
 import AddNodeButton from './components/AutomationWorkflow/ui/AddNodeButton';
+import NodeMenu from './components/AutomationWorkflow/ui/NodeMenu';
+import BranchMenu from './components/AutomationWorkflow/ui/BranchMenu';
 
 // Import the NodePropertiesPanel
 import { NodePropertiesPanel } from './components/AutomationWorkflow/NodeProperties';
@@ -198,28 +200,6 @@ const AutomationWorkflow = ({
   const [menuAnchorPosition, setMenuAnchorPosition] = useState(null);
   const [branchMenuAnchorPosition, setBranchMenuAnchorPosition] = useState(null);
   
-  // Auto-hide menu timer
-  const menuHideTimerRef = useRef(null);
-  const [isMouseOverMenuOrButton, setIsMouseOverMenuOrButton] = useState(false);
-  
-  // Functions to clear and start the auto-hide timer - memoized to prevent recreation on each render
-  const clearMenuHideTimer = useCallback(() => {
-    if (menuHideTimerRef.current) {
-      clearTimeout(menuHideTimerRef.current);
-      menuHideTimerRef.current = null;
-    }
-  }, []);
-  
-  const startMenuHideTimer = useCallback(() => {
-    clearMenuHideTimer();
-    menuHideTimerRef.current = setTimeout(() => {
-      if (!isMouseOverMenuOrButton) {
-        setActiveAddButtonNodeId(null);
-        setActiveBranchButton(null);
-      }
-    }, AUTO_HIDE_TIMEOUT);
-  }, [clearMenuHideTimer, isMouseOverMenuOrButton]);
-  
   // Handler for node height changes
   const handleNodeHeightChange = useCallback((id, height) => {
     setWorkflowGraph(prevGraph => {
@@ -237,17 +217,7 @@ const AutomationWorkflow = ({
       return newGraph;
     });
   }, []);
-  
-  // Mouse over menu/button tracking functions
-  const handleMenuMouseEnter = useCallback(() => {
-    clearMenuHideTimer();
-    setIsMouseOverMenuOrButton(true);
-  }, [clearMenuHideTimer]);
-  
-  const handleMenuMouseLeave = useCallback(() => {
-    setIsMouseOverMenuOrButton(false);
-  }, []);
-  
+
   // Close menus when clicking outside or on another node
   useEffect(() => {
     // Handle click outside events
@@ -268,12 +238,10 @@ const AutomationWorkflow = ({
         // Close menu when clicking on any node that's not an add button
         if (isClickingNode) {
           setActiveAddButtonNodeId(null);
-          clearMenuHideTimer();
         }
         // Or when clicking anywhere else (except the menu or add button)
         else if (!isClickingMenu && !isClickingAddButton) {
           setActiveAddButtonNodeId(null);
-          clearMenuHideTimer();
         }
       }
     };
@@ -281,20 +249,8 @@ const AutomationWorkflow = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      clearMenuHideTimer();
     };
-  }, [showNodeMenu, activeAddButtonNodeId, clearMenuHideTimer]);
-  
-  // Start auto-hide timer when menu is opened
-  useEffect(() => {
-    if (activeAddButtonNodeId !== null && !isMouseOverMenuOrButton) {
-      startMenuHideTimer();
-    } else {
-      clearMenuHideTimer();
-    }
-    
-    return () => clearMenuHideTimer();
-  }, [activeAddButtonNodeId, isMouseOverMenuOrButton, clearMenuHideTimer, startMenuHideTimer]);
+  }, [showNodeMenu, activeAddButtonNodeId]);
   
   // Add a ref to track if we just clicked a node
   const justClickedNodeRef = useRef(false);
@@ -941,13 +897,8 @@ const AutomationWorkflow = ({
       setBranchMenuAnchorPosition(null);
     }
     
-    // Start the auto-hide timer when menu is opened
-    if (nodeId !== null && nodeId !== activeAddButtonNodeId) {
-      startMenuHideTimer();
-    }
-    
     e.stopPropagation();
-  }, [workflowGraph, activeAddButtonNodeId, startMenuHideTimer]);
+  }, [workflowGraph, activeAddButtonNodeId]);
   
   // Handle showing the branch endpoint menu
   const handleShowBranchEndpointMenu = useCallback((nodeId, branchId, e, buttonRect) => {
@@ -973,13 +924,8 @@ const AutomationWorkflow = ({
       setMenuAnchorPosition(null);
     }
     
-    // Start the auto-hide timer when menu is opened
-    if (nodeId !== null && (!activeBranchButton || activeBranchButton.nodeId !== nodeId || activeBranchButton.branchId !== branchId)) {
-      startMenuHideTimer();
-    }
-    
     e.stopPropagation();
-  }, [workflowGraph, activeBranchButton, startMenuHideTimer]);
+  }, [workflowGraph, activeBranchButton]);
   
   // Handle showing the branch edge menu (when clicking + on a branch connection)
   const handleShowBranchEdgeMenu = useCallback((nodeId, branchId, e, buttonRect) => {
@@ -1005,13 +951,8 @@ const AutomationWorkflow = ({
       setMenuAnchorPosition(null);
     }
     
-    // Start the auto-hide timer when menu is opened
-    if (nodeId !== null && (!activeBranchButton || activeBranchButton.nodeId !== nodeId || activeBranchButton.branchId !== branchId)) {
-      startMenuHideTimer();
-    }
-    
     e.stopPropagation();
-  }, [workflowGraph, activeBranchButton, startMenuHideTimer]);
+  }, [workflowGraph, activeBranchButton]);
   
   // This function calculates the connection endpoints
   const calculateConnectionPoints = useCallback((sourceNode, targetNode) => {
@@ -1099,7 +1040,7 @@ const renderConnections = useCallback(() => {
   // Render add node buttons on edge lines
   const renderAddNodeButtons = useCallback(() => {
     const buttons = [];
-    console.log('Rendering add node buttons...');
+    //console.log("Rendering add node buttons...");
     // Render a button on each edge connection line (midway between source and target)
     workflowGraph.getAllEdges().forEach((edge) => {
       const sourceNode = workflowGraph.getNode(edge.sourceId);
@@ -1139,27 +1080,7 @@ const renderConnections = useCallback(() => {
             activeBranchButton.nodeId === edge.sourceId &&
             activeBranchButton.branchId === edge.label
           : activeAddButtonNodeId === edge.sourceId;
-            
-        // Handlers for mouse enter/leave with position tracking
-        const handleButtonMouseEnter = (buttonRect) => {
-          if (edge.type === CONNECTION_TYPES.BRANCH) {
-            setBranchMenuAnchorPosition(buttonRect);
-          } else {
-            setMenuAnchorPosition(buttonRect);
-          }
-        };
-        
-        const handleButtonMouseLeave = () => {
-          if (!isHighlighted) {
-            if (edge.type === CONNECTION_TYPES.BRANCH) {
-              // Only clear if not highlighted
-              setBranchMenuAnchorPosition(null);
-            } else {
-              setMenuAnchorPosition(null);
-            }
-          }
-        };
-        
+                      
         buttons.push(
           <AddNodeButton
             key={`add-button-edge-${edge.sourceId}-${edge.targetId}-${edge.type}-${edge.label || 'default'}`}
@@ -1168,8 +1089,6 @@ const renderConnections = useCallback(() => {
             buttonSize={BUTTON_SIZE}
             onAdd={onAddHandler}
             isHighlighted={isHighlighted}
-            onMouseEnter={handleButtonMouseEnter}
-            onMouseLeave={handleButtonMouseLeave}
             showMenu={showMenu}
             sourceNodeId={edge.sourceId}
             sourceType={edge.type === CONNECTION_TYPES.BRANCH ? "branch" : "standard"}
@@ -1347,255 +1266,93 @@ const renderConnections = useCallback(() => {
     handleShowBranchEndpointMenu,
     calculateConnectionPoints,
     calculateBranchConnectionPoints,
-    getBranchEndpoint,
-    setMenuAnchorPosition,
-    setBranchMenuAnchorPosition
-    // pluginRegistry is not needed as a dependency as it's an imported singleton
+    getBranchEndpoint
   ]);
   
-  // Render the add node menu when active
-  const renderActiveAddNodeMenu = useCallback(() => {
-    if (!activeAddButtonNodeId) return null;
+  // Remove the old menu rendering methods (renderActiveAddNodeMenu and renderActiveBranchEndpointMenu)
+  // as we're now using the dedicated components
+
+  // Menu handlers
+  const handleCloseNodeMenu = useCallback(() => {
+    setActiveAddButtonNodeId(null);
+  }, []);
+  
+  const handleCloseBranchMenu = useCallback(() => {
+    setActiveBranchButton(null);
+  }, []);
+  
+  // Calculate node menu position
+  const getNodeMenuPosition = useCallback(() => {
+    if (!activeAddButtonNodeId) return { x: 0, y: 0 };
     
     const sourceNode = workflowGraph.getNode(activeAddButtonNodeId);
-    if (!sourceNode) return null;
-    
-    let menuPosition;
+    if (!sourceNode) return { x: 0, y: 0 };
     
     if (MENU_PLACEMENT.ATTACH_TO_CANVAS) {
       // Position menu in graph coordinates (part of the canvas transform)
       if (menuAnchorPosition) {
         // Convert screen coords to graph coords
-        menuPosition = {
+        return {
           x: (menuAnchorPosition.x - transform.x) / transform.scale,
           y: (menuAnchorPosition.y + menuAnchorPosition.height/2 + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET - transform.y) / transform.scale
         };
       } else {
-        menuPosition = {
+        return {
           x: sourceNode.position.x + (DEFAULT_NODE_WIDTH / 2),
           y: sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + buttonYOffset + BUTTON_SIZE + 10
         };
       }
-      
-      return (
-        <div
-          className="absolute bg-white rounded-lg shadow-lg border border-gray-200 p-2 node-menu"
-          style={{
-            left: `${menuPosition.x}px`,
-            top: `${menuPosition.y}px`,
-            transform: 'translateX(-50%)',
-            zIndex: MENU_PLACEMENT.MENU_Z_INDEX
-          }}
-          onMouseEnter={handleMenuMouseEnter}
-          onMouseLeave={handleMenuMouseLeave}
-        >
-          <div className="flex space-x-2">
-          <button
-            className="p-2 flex flex-col items-center text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md w-20 h-20"
-            onClick={() => {
-              // Check if this is from a branch edge
-              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
-                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
-                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
-              
-              handleAddStep(
-                activeAddButtonNodeId,
-                NODE_TYPES.TRIGGER,
-                branchInfo.type,
-                branchInfo.branchId
-              );
-            }}
-          >
-            <Zap className="w-6 h-6 mb-1" />
-            Trigger
-          </button>
-          <button
-            className="p-2 flex flex-col items-center text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md w-20 h-20"
-            onClick={() => {
-              // Check if this is from a branch edge
-              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
-                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
-                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
-              
-              handleAddStep(
-                activeAddButtonNodeId,
-                NODE_TYPES.CONTROL,
-                branchInfo.type,
-                branchInfo.branchId
-              );
-            }}
-          >
-            <Hexagon className="w-6 h-6 mb-1" />
-            Control
-          </button>
-          <button
-            className="p-2 flex flex-col items-center text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded-md w-20 h-20"
-            onClick={() => {
-              // Check if this is from a branch edge
-              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
-                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
-                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
-              
-              handleAddStep(
-                activeAddButtonNodeId,
-                NODE_TYPES.ACTION,
-                branchInfo.type,
-                branchInfo.branchId
-              );
-            }}
-          >
-            <Send className="w-6 h-6 mb-1" />
-            Action
-          </button>
-        </div>
-        <div className="flex space-x-2 mt-2">
-          <button
-            className="p-2 flex flex-col items-center text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md w-20 h-20"
-            onClick={() => {
-              // Check if this is from a branch edge
-              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
-                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
-                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
-              
-              handleAddStep(
-                activeAddButtonNodeId,
-                NODE_TYPES.IFELSE,
-                branchInfo.type,
-                branchInfo.branchId
-              );
-            }}
-          >
-            <GitBranch className="w-6 h-6 mb-1" />
-            If/Else
-          </button>
-          <button
-            className="p-2 flex flex-col items-center text-xs bg-green-50 hover:bg-green-100 text-green-700 rounded-md w-20 h-20"
-            onClick={() => {
-              // Check if this is from a branch edge
-              const branchInfo = activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId
-                ? { type: CONNECTION_TYPES.BRANCH, branchId: activeBranchButton.branchId }
-                : { type: CONNECTION_TYPES.DEFAULT, branchId: null };
-              
-              handleAddStep(
-                activeAddButtonNodeId,
-                NODE_TYPES.SPLITFLOW,
-                branchInfo.type,
-                branchInfo.branchId
-              );
-            }}
-          >
-            <GitMerge className="w-6 h-6 mb-1" />
-            Split Flow
-          </button>
-        </div>
-        </div>
-      );
     } else {
-      // Fixed position menu (outside canvas transform)
-      // This will be rendered outside the transformed container
+      // Fixed position (outside transform)
       if (menuAnchorPosition) {
-        menuPosition = {
-          x: menuAnchorPosition.x,
-          y: menuAnchorPosition.y + menuAnchorPosition.height/2 + MENU_PLACEMENT.MENU_VERTICAL_OFFSET
-        };
+        return menuAnchorPosition;
       } else {
         // Convert node position to screen coordinates
-        const nodeScreenX = sourceNode.position.x * transform.scale + transform.x + (DEFAULT_NODE_WIDTH / 2) * transform.scale;
-        const nodeScreenY = (sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + buttonYOffset + BUTTON_SIZE + 10) * transform.scale + transform.y;
-        
-        menuPosition = {
-          x: nodeScreenX,
-          y: nodeScreenY
+        return {
+          x: sourceNode.position.x * transform.scale + transform.x + (DEFAULT_NODE_WIDTH / 2) * transform.scale,
+          y: (sourceNode.position.y + (sourceNode.height || DEFAULT_NODE_HEIGHT) + buttonYOffset + BUTTON_SIZE + 10) * transform.scale + transform.y
         };
       }
-      
-      // This menu will be rendered at the root level, outside the transform
-      return null; // Return null here as this will be rendered separately
     }
-  }, [
-    activeAddButtonNodeId,
-    activeBranchButton,
-    workflowGraph,
-    buttonYOffset,
-    menuAnchorPosition,
-    handleMenuMouseEnter,
-    handleMenuMouseLeave,
-    handleAddStep,
-    transform
-  ]);
+  }, [activeAddButtonNodeId, workflowGraph, menuAnchorPosition, transform, buttonYOffset]);
   
-  // Render the branch endpoint menu when active
-  const renderActiveBranchEndpointMenu = useCallback(() => {
-    if (!activeBranchButton) return null;
+  // Calculate branch menu position
+  const getBranchMenuPosition = useCallback(() => {
+    if (!activeBranchButton) return { x: 0, y: 0 };
     
     const { nodeId, branchId } = activeBranchButton;
     const sourceNode = workflowGraph.getNode(nodeId);
-    if (!sourceNode) return null;
+    if (!sourceNode) return { x: 0, y: 0 };
     
-    // Position menu relative to the node in graph coordinates
-    let menuPosition;
-    if (branchMenuAnchorPosition) {
-      // Convert screen coords to graph coords
-      menuPosition = {
-        x: (branchMenuAnchorPosition.x - transform.x) / transform.scale,
-        y: (branchMenuAnchorPosition.y + branchMenuAnchorPosition.height/2 + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET - transform.y) / transform.scale
-      };
+    if (MENU_PLACEMENT.ATTACH_TO_CANVAS) {
+      // Position menu relative to the node in graph coordinates
+      if (branchMenuAnchorPosition) {
+        // Convert screen coords to graph coords
+        return {
+          x: (branchMenuAnchorPosition.x - transform.x) / transform.scale,
+          y: (branchMenuAnchorPosition.y + branchMenuAnchorPosition.height/2 + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET - transform.y) / transform.scale
+        };
+      } else {
+        const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
+        return {
+          x: branchEndpoint.x,
+          y: branchEndpoint.y + BUTTON_SIZE + 10
+        };
+      }
     } else {
-      const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
-      menuPosition = {
-        x: branchEndpoint.x,
-        y: branchEndpoint.y + BUTTON_SIZE + 10
-      };
+      // Fixed position (outside transform)
+      if (branchMenuAnchorPosition) {
+        return branchMenuAnchorPosition;
+      } else {
+        const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
+        // Convert branch endpoint position to screen coordinates
+        return {
+          x: branchEndpoint.x * transform.scale + transform.x,
+          y: (branchEndpoint.y + BUTTON_SIZE + 10) * transform.scale + transform.y
+        };
+      }
     }
-    
-    return (
-      <div 
-        className="absolute bg-white rounded-lg shadow-lg border border-gray-200 p-2 z-20 node-menu"
-        style={{
-          left: `${menuPosition.x}px`,
-          top: `${menuPosition.y}px`,
-          transform: 'translateX(-50%)'
-        }}
-        onMouseEnter={handleMenuMouseEnter}
-        onMouseLeave={handleMenuMouseLeave}
-      >
-        <div className="flex space-x-2">
-          <button 
-            className="p-2 flex flex-col items-center text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md w-20 h-20"
-            onClick={() => handleAddStep(nodeId, NODE_TYPES.TRIGGER, CONNECTION_TYPES.BRANCH, branchId)}
-          >
-            <Zap className="w-6 h-6 mb-1" />
-            Trigger
-          </button>
-          <button 
-            className="p-2 flex flex-col items-center text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md w-20 h-20"
-            onClick={() => handleAddStep(nodeId, NODE_TYPES.CONTROL, CONNECTION_TYPES.BRANCH, branchId)}
-          >
-            <Hexagon className="w-6 h-6 mb-1" />
-            Control
-          </button>
-          <button 
-            className="p-2 flex flex-col items-center text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded-md w-20 h-20"
-            onClick={() => handleAddStep(nodeId, NODE_TYPES.ACTION, CONNECTION_TYPES.BRANCH, branchId)}
-          >
-            <Send className="w-6 h-6 mb-1" />
-            Action
-          </button>
-        </div>
-      </div>
-    );
-  }, [
-    activeBranchButton,
-    workflowGraph,
-    getBranchEndpoint,
-    branchMenuAnchorPosition,
-    handleMenuMouseEnter,
-    handleMenuMouseLeave,
-    handleAddStep,
-    transform // Add transform to dependencies
-  ]);
-
-  // We're now passing pluginRegistry directly to NodePropertiesPanel
+  }, [activeBranchButton, workflowGraph, branchMenuAnchorPosition, transform, buttonYOffset, getBranchEndpoint]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -1677,9 +1434,31 @@ const renderConnections = useCallback(() => {
             {/* Add node buttons */}
             {renderAddNodeButtons()}
 
-            {/* Only render menus inside transformed container if ATTACH_TO_CANVAS is true */}
-            {MENU_PLACEMENT.ATTACH_TO_CANVAS && renderActiveAddNodeMenu()}
-            {MENU_PLACEMENT.ATTACH_TO_CANVAS && renderActiveBranchEndpointMenu()}
+            {/* Render NodeMenu component for canvas-attached menus */}
+            {MENU_PLACEMENT.ATTACH_TO_CANVAS && (
+              <>
+                <NodeMenu 
+                  isOpen={activeAddButtonNodeId !== null}
+                  onClose={handleCloseNodeMenu}
+                  sourceNodeId={activeAddButtonNodeId}
+                  activeBranchInfo={activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId ? activeBranchButton : null}
+                  menuPosition={getNodeMenuPosition()}
+                  transform={transform}
+                  buttonYOffset={buttonYOffset}
+                  onAddNode={handleAddStep}
+                />
+                
+                <BranchMenu 
+                  isOpen={activeBranchButton !== null && (!activeAddButtonNodeId || activeAddButtonNodeId !== activeBranchButton.nodeId)}
+                  onClose={handleCloseBranchMenu}
+                  sourceNodeId={activeBranchButton?.nodeId}
+                  branchId={activeBranchButton?.branchId}
+                  menuPosition={getBranchMenuPosition()}
+                  transform={transform}
+                  onAddNode={handleAddStep}
+                />
+              </>
+            )}
           </div>
 
           {/* Floating controls for zoom and reset (fixed position) */}
@@ -1742,8 +1521,31 @@ const renderConnections = useCallback(() => {
             </button>
           </div>
 
-          {/* If not attached to canvas, render menus at root level */}
-          
+          {/* Render NodeMenu component for fixed-position menus */}
+          {!MENU_PLACEMENT.ATTACH_TO_CANVAS && (
+            <>
+              <NodeMenu 
+                isOpen={activeAddButtonNodeId !== null}
+                onClose={handleCloseNodeMenu}
+                sourceNodeId={activeAddButtonNodeId}
+                activeBranchInfo={activeBranchButton && activeBranchButton.nodeId === activeAddButtonNodeId ? activeBranchButton : null}
+                menuPosition={getNodeMenuPosition()}
+                transform={transform}
+                buttonYOffset={buttonYOffset}
+                onAddNode={handleAddStep}
+              />
+              
+              <BranchMenu 
+                isOpen={activeBranchButton !== null && (!activeAddButtonNodeId || activeAddButtonNodeId !== activeBranchButton.nodeId)}
+                onClose={handleCloseBranchMenu}
+                sourceNodeId={activeBranchButton?.nodeId}
+                branchId={activeBranchButton?.branchId}
+                menuPosition={getBranchMenuPosition()}
+                transform={transform}
+                onAddNode={handleAddStep}
+              />
+            </>
+          )}
         </div>
 
         {/* Properties panel */}

@@ -16,16 +16,21 @@ const AddNodeButton = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const buttonRef = useRef(null);
+  const lastPositionRef = useRef(position);
+  const lastHighlightedRef = useRef(isHighlighted);
   
   // Handle mouse events directly instead of using isMenuHovered state
   const handleMouseEnter = () => {
     setIsHovered(true);
-    onMouseEnter?.(getButtonRect());
+    if (onMouseEnter) {
+      const buttonRect = getButtonRect();
+      if (buttonRect) onMouseEnter(buttonRect);
+    }
   };
   
   const handleMouseLeave = () => {
     setIsHovered(false);
-    onMouseLeave?.();
+    if (onMouseLeave) onMouseLeave();
   };
   
   // Function to get button position and dimensions
@@ -42,12 +47,30 @@ const AddNodeButton = ({
     return null;
   };
   
-  // Re-emit button position when it changes
+  // Only emit position when it changes significantly or highlight state changes
   useEffect(() => {
-    if (isHighlighted && buttonRef.current) {
-      onMouseEnter?.(getButtonRect());
+    // Only run this effect on real position changes or highlight toggle
+    const posChanged = 
+      Math.abs(position.x - lastPositionRef.current.x) > 1 || 
+      Math.abs(position.y - lastPositionRef.current.y) > 1;
+    
+    const highlightChanged = isHighlighted !== lastHighlightedRef.current;
+    
+    if ((posChanged || highlightChanged) && isHighlighted && buttonRef.current) {
+      // Update our last position ref
+      lastPositionRef.current = position;
+      lastHighlightedRef.current = isHighlighted;
+      
+      // Call handler with current position
+      const buttonRect = getButtonRect();
+      if (buttonRect && onMouseEnter) {
+        onMouseEnter(buttonRect);
+      }
+    } else if (highlightChanged) {
+      // Just update refs if only highlight changed
+      lastHighlightedRef.current = isHighlighted;
     }
-  }, [position, isHighlighted]);
+  }, [position.x, position.y, isHighlighted, onMouseEnter]);
   
   return (
     <div
