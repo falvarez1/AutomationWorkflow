@@ -337,6 +337,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
   // Smooth zoom with wheel
   useEffect(() => {
     const handleWheel = (e) => {
+      // If Ctrl or Meta key is pressed, handle as zoom
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         
@@ -377,6 +378,26 @@ const handleNodeHeightChange = useCallback((id, height) => {
             y: newY,
             scale: newScale
           };
+        });
+      } 
+      // If no modifier keys, handle as touchpad panning
+      else {
+        e.preventDefault();
+        
+        // Adjust sensitivity for touchpad panning
+        const panSensitivity = 1.0;
+        
+        // Use deltaX and deltaY for panning
+        const dx = -e.deltaX * panSensitivity;
+        const dy = -e.deltaY * panSensitivity;
+        
+        // Apply the pan using requestAnimationFrame for smoother performance
+        requestAnimationFrame(() => {
+          setTransform(prev => ({
+            ...prev,
+            x: prev.x + dx,
+            y: prev.y + dy
+          }));
         });
       }
     };
