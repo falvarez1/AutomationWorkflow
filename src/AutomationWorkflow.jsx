@@ -135,8 +135,6 @@ const AutomationWorkflow = ({
   const [activeTab, setActiveTab] = useState('flow');
   const [showNodeMenu, setShowNodeMenu] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [activeAddButtonNodeId, setActiveAddButtonNodeId] = useState(null);
-  const [activeBranchButton, setActiveBranchButton] = useState(null);
   const [dragStartPosition, setDragStartPosition] = useState(null);
   
   // Consolidated menu close handlers
@@ -583,12 +581,11 @@ const handleNodeHeightChange = useCallback((id, height) => {
       }
     });
     
-    // Close any open menus
-    setActiveAddButtonNodeId(null);
-    setActiveBranchButton(null);
+    // Replace with consolidated menu close
+    handleCloseMenu();
   }, [workflowGraph, createNewNode, getBranchEndpoint, 
     standardVerticalSpacing, branchVerticalSpacing, 
-    branchLeftOffset, branchRightOffset]);
+    branchLeftOffset, branchRightOffset, handleCloseMenu]);
 
   // Initialize command manager and listen for changes
   useEffect(() => {
