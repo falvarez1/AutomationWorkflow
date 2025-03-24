@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { rules } from './components/AutomationWorkflow/validation';
+import { rules } from '../components/AutomationWorkflow/validation';
 
 /**
  * Simple validation test component

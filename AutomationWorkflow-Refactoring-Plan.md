@@ -930,7 +930,8 @@ flowchart TD
 
 1. Create custom hooks for common behaviors (drag-and-drop, context menu)
 2. Extract animation logic to a reusable hook
-3. Create utility functions for common event handling patterns
+3. Create 
+ functions for common event handling patterns
 
 ## Implementation Approach
 

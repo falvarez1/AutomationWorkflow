@@ -3,13 +3,13 @@ import {
   useFormValidation, 
   useFieldValidation, 
   rules 
-} from './components/AutomationWorkflow/validation';
+} from '../components/AutomationWorkflow/validation';
 
 // Import the direct UI element components instead of the controls
-import TextInputElement from './components/AutomationWorkflow/controls/elements/TextInputElement';
-import NumberElement from './components/AutomationWorkflow/controls/elements/NumberElement';
-import SelectElement from './components/AutomationWorkflow/controls/elements/SelectElement';
-import CheckboxElement from './components/AutomationWorkflow/controls/elements/CheckboxElement';
+import TextInputElement from '../components/AutomationWorkflow/controls/elements/TextInputElement';
+import NumberElement from '../components/AutomationWorkflow/controls/elements/NumberElement';
+import SelectElement from '../components/AutomationWorkflow/controls/elements/SelectElement';
+import CheckboxElement from '../components/AutomationWorkflow/controls/elements/CheckboxElement';
 
 /**
  * Test component for validating the validation framework
