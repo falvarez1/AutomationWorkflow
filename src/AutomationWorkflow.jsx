@@ -66,6 +66,7 @@ import {
   BRANCH_EDGE_COLORS,
   SHOW_GRID,
   GRID_COLOR,
+  GRID_DOT_SIZE,
   SNAP_TO_GRID,
   STANDARD_VERTICAL_SPACING,
   BRANCH_VERTICAL_SPACING,
@@ -115,6 +116,8 @@ const AutomationWorkflow = ({
 
   // Get grid settings with defaults from constants
   const showGrid = gridOptions.showGrid !== undefined ? gridOptions.showGrid : SHOW_GRID;
+  const gridDotSize = gridOptions.gridDotSize || GRID_DOT_SIZE;
+  let scaledGridDotSize = gridDotSize * transform.scale;
   const gridColor = gridOptions.gridColor || GRID_COLOR;
   const [snapToGrid, setSnapToGrid] = useState(
     gridOptions.snapToGrid !== undefined ? gridOptions.snapToGrid : SNAP_TO_GRID
@@ -1621,7 +1624,7 @@ const renderConnections = useCallback(() => {
           style={{
             cursor: isPanning ? 'grabbing' : 'default',
             backgroundColor: '#F9FAFB',
-            backgroundImage: showGrid ? `radial-gradient(circle, ${gridColor} 1px, transparent 1px)` : 'none',
+            backgroundImage: showGrid ? `radial-gradient(circle, ${gridColor} ${scaledGridDotSize}px, transparent 1px)` : 'none',
             backgroundSize: `${GRID_SIZE * transform.scale}px ${GRID_SIZE * transform.scale}px`,
             backgroundPosition: `${transform.x}px ${transform.y}px`
           }}
