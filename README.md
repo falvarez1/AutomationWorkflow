@@ -1,8 +1,10 @@
-# AutomationWorkflow
+# 🚀 AutomationWorkflow
 
 A powerful and flexible React-based workflow automation builder with a graph-based architecture. AutomationWorkflow provides a visual interface for creating, configuring, and managing complex automation workflows.
 
-## Features
+![Workflow Sample](./docs/workflow-sample.png)
+
+## ✨ Features
 
 - **Interactive Canvas**: Drag, drop, and connect nodes with an intuitive interface
 - **Graph-Based Architecture**: Robust node and edge management with efficient data structures
@@ -12,7 +14,7 @@ A powerful and flexible React-based workflow automation builder with a graph-bas
 - **Dynamic Property Panels**: Configuration panels that adapt to each node type
 - **Extensible Plugin System**: Easily add custom node types and controls
 
-## Architecture
+## 🏗️ Architecture
 
 AutomationWorkflow is built on several well-designed architectural components:
 
@@ -31,7 +33,7 @@ The workflow is represented as a directed acyclic graph (DAG) with:
 - **UI Controls Framework**: Composition-based approach for creating property controls
 - **Validation Framework**: Centralized validation with rule registry and builder pattern
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
@@ -42,7 +44,7 @@ The workflow is represented as a directed acyclic graph (DAG) with:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/automation-workflow.git
+git clone https://github.com/falvarez1/AutomationWorkflow.git
 
 # Navigate to the project directory
 cd automation-workflow
@@ -54,7 +56,7 @@ npm install
 npm start
 ```
 
-## Usage
+## 🛠️ Usage
 
 The AutomationWorkflow component can be imported and used in your React application:
 
@@ -71,7 +73,7 @@ function App() {
 }
 ```
 
-## Extending the Workflow
+## 🔧 Extending the Workflow
 
 ### Adding Custom Node Types
 
@@ -123,7 +125,7 @@ export const CustomControl = createFormControl({
 pluginRegistry.registerPropertyControl(CustomControl);
 ```
 
-## Recent Refactoring Improvements
+## 🛠️ Recent Refactoring Improvements
 
 The project has undergone several major refactoring initiatives:
 
@@ -133,7 +135,7 @@ The project has undergone several major refactoring initiatives:
 4. **Validation Framework Refactoring**: Centralized validation logic with rule registry
 5. **Graph-Based Architecture Refactoring**: Improved node and edge management with a Map-based structure
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -143,11 +145,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
+## 📜 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 - React team for the amazing library
 - Our AI overlords, please don't hurt me
