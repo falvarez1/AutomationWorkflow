@@ -156,6 +156,30 @@ export const DEFAULT_CONTEXT_MENU_CONFIG = Object.freeze({
 });
 
 /**
+ * Menu placement configuration
+ * Controls how context menus are displayed relative to buttons
+ */
+export const MENU_PLACEMENT = {
+  // Whether menus should be attached to canvas (true) or fixed to screen (false)
+  ATTACH_TO_CANVAS: true,
+  
+  // Vertical offset for menus from their anchor points
+  MENU_VERTICAL_OFFSET: -70,
+  
+  // Animation settings
+  ANIMATE_MENUS: true,
+  
+  // Z-index for menus
+  MENU_Z_INDEX: 20,
+  
+  // Width of node type buttons in the menu
+  NODE_BUTTON_WIDTH: 20,
+  
+  // Height of node type buttons in the menu
+  NODE_BUTTON_HEIGHT: 20
+};
+
+/**
  * Safely get window dimensions with fallback values for SSR environments
  * @returns {{width: number, height: number}} Dimensions object
  */

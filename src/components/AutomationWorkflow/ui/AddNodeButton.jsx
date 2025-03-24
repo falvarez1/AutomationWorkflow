@@ -1,26 +1,26 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 
 // Add Node Button Component with integrated menu
-const AddNodeButton = ({ 
-  position, 
-  nodeWidth, 
-  buttonSize, 
-  onAdd, 
-  isHighlighted = false, 
-  onMouseEnter, 
-  onMouseLeave, 
-  showMenu = false, 
-  sourceNodeId = 'none', 
-  sourceType = 'standard' 
+const AddNodeButton = ({
+  position,
+  nodeWidth,
+  buttonSize,
+  onAdd,
+  isHighlighted = false,
+  onMouseEnter,
+  onMouseLeave,
+  showMenu = false,
+  sourceNodeId = 'none',
+  sourceType = 'standard'
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const buttonRef = useRef(null); // Add ref to get button position for menu
+  const buttonRef = useRef(null);
   
   // Handle mouse events directly instead of using isMenuHovered state
   const handleMouseEnter = () => {
     setIsHovered(true);
-    onMouseEnter?.();
+    onMouseEnter?.(getButtonRect());
   };
   
   const handleMouseLeave = () => {
@@ -28,9 +28,29 @@ const AddNodeButton = ({
     onMouseLeave?.();
   };
   
+  // Function to get button position and dimensions
+  const getButtonRect = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2, // Center X
+        y: rect.top + rect.height / 2,  // Center Y
+        width: rect.width,
+        height: rect.height
+      };
+    }
+    return null;
+  };
+  
+  // Re-emit button position when it changes
+  useEffect(() => {
+    if (isHighlighted && buttonRef.current) {
+      onMouseEnter?.(getButtonRect());
+    }
+  }, [position, isHighlighted]);
+  
   return (
     <div
-      ref={buttonRef}
       style={{
         position: 'absolute',
         left: (position.x - (buttonSize / 2)) + 'px', // Center directly on the position point
@@ -43,11 +63,12 @@ const AddNodeButton = ({
       className="add-node-button"
     >
       <button
+        ref={buttonRef}
         style={{
           transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s'
         }}
         onClick={(e) => {
-          onAdd(e);
+          onAdd(e, getButtonRect());
           e.stopPropagation();
         }}
         onMouseEnter={handleMouseEnter}
