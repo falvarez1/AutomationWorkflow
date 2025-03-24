@@ -176,6 +176,25 @@ interface WorkflowInputField {
 }
 ```
 
+### AddNodeButtonRenderer
+
+Renders the buttons for adding new nodes to the workflow.
+
+#### Props
+
+```typescript
+interface AddNodeButtonRendererProps {
+  workflowGraph: Graph;
+  menuState: MenuState;
+  handleShowAddMenu: (nodeId: string, e: React.MouseEvent, buttonRect: DOMRect) => void;
+  handleShowBranchEdgeMenu: (nodeId: string, branchId: string, e: React.MouseEvent, buttonRect: DOMRect) => void;
+  handleShowBranchEndpointMenu: (nodeId: string, branchId: string, e: React.MouseEvent, buttonRect: DOMRect) => void;
+  pluginRegistry: PluginRegistry;
+  edgeInputYOffset?: number;
+  edgeOutputYOffset?: number;
+}
+```
+
 ## Services
 
 ### workflowService
@@ -197,6 +216,7 @@ interface WorkflowService {
   
   // Execution
   executeWorkflow(id: string, inputs?: Record<string, any>): Promise<ExecutionData>;
+  cancelExecution(executionId: string): Promise<void>;
   
   // Event listeners
   onExecutionUpdate(callback: (update: ExecutionUpdate) => void): () => void;
@@ -382,6 +402,122 @@ class ConnectNodesCommand implements Command { /* ... */ }
 class DisconnectNodesCommand implements Command { /* ... */ }
 ```
 
+## Event Types
+
+### Execution-Related Events
+
+```typescript
+interface ExecutionStatus {
+  isExecuting: boolean;
+  currentNodeId: string | null;
+  progress: number; // 0-100
+  startTime: Date | null;
+  endTime?: Date;
+  errors: ExecutionError[];
+}
+
+interface ExecutionError {
+  message: string;
+  nodeId?: string;
+  details?: any;
+}
+
+interface NodeStatusUpdate {
+  nodeId: string;
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'skipped';
+  data?: any;
+  timestamp: Date;
+}
+```
+
+### Connection-Related Events
+
+```typescript
+// Connection status events
+type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'error';
+
+interface ConnectionStatusEvent {
+  status: ConnectionStatus;
+  error?: Error;
+  timestamp: Date;
+}
+```
+
+## Hooks
+
+### Core Hooks
+
+```typescript
+// Hook for dragging elements
+function useDrag(options: {
+  onDragStart?: (data: DragStartData) => void;
+  onDragMove?: (data: DragMoveData) => void;
+  onDragEnd?: (data: DragEndData) => void;
+  threshold?: number;
+  preventDefaultDrag?: boolean;
+}): {
+  isDragging: boolean;
+  dragOffset: { x: number; y: number };
+  handlers: {
+    onMouseDown: (e: React.MouseEvent) => void;
+  };
+}
+
+// Hook for node dragging
+function useNodeDrag(options: {
+  id: string;
+  position: { x: number; y: number };
+  gridSize?: number;
+  snapToGrid?: boolean;
+  createMoveCommand?: (id: string, from: Position, to: Position) => Command;
+  onDragStart?: (data: NodeDragStartData) => void;
+  onDragEnd?: (data: NodeDragEndData) => void;
+}): {
+  isDragging: boolean;
+  currentPosition: { x: number; y: number };
+  handlers: {
+    onMouseDown: (e: React.MouseEvent) => void;
+  };
+}
+
+// Hook for zoom and pan
+function useZoomPan(options: {
+  minZoom?: number;
+  maxZoom?: number;
+  initialZoom?: number;
+  initialPan?: { x: number; y: number };
+  zoomSensitivity?: number;
+  onZoomChange?: (zoom: number) => void;
+  onPanChange?: (pan: { x: number; y: number }) => void;
+}): {
+  zoom: number;
+  pan: { x: number; y: number };
+  handlers: {
+    onWheel: (e: React.WheelEvent) => void;
+    onMouseDown: (e: React.MouseEvent) => void;
+  };
+  resetView: () => void;
+  setZoomLevel: (level: number, center?: { x: number; y: number }) => void;
+}
+
+// Hook for connection drawing
+function useConnectionDrawing(options: {
+  workflowGraph: Graph;
+  onConnectionComplete?: (sourceId: string, targetId: string, type: string, branchId?: string) => void;
+  getPortPosition?: (nodeId: string, portIndex: number, isInput: boolean) => { x: number; y: number };
+}): {
+  activeConnection: {
+    sourceId: string;
+    sourcePort: number;
+    targetPosition: { x: number; y: number };
+    type: string;
+    branchId?: string;
+  } | null;
+  startConnection: (sourceId: string, sourcePort: number, type: string, branchId?: string) => void;
+  isDrawingConnection: boolean;
+}
+```
+
 ## Integration Examples
 
 ### Basic Integration with External App
@@ -541,3 +677,137 @@ const ApiIntegrationNodePlugin = createNodePlugin({
 // Register the custom node type
 pluginRegistry.registerNodeType(ApiIntegrationNodePlugin);
 ```
+
+## Integration with ASP.NET Backend
+
+### Backend Configuration
+
+```typescript
+interface BackendConfiguration {
+  // API configuration
+  apiBaseUrl: string;
+  apiVersion?: string;
+  
+  // Authentication
+  authToken?: string;
+  refreshToken?: string;
+  
+  // SignalR configuration
+  hubUrl: string;
+  reconnectAttempts?: number;
+  reconnectInterval?: number;
+  
+  // Feature flags
+  enableLiveUpdates?: boolean;
+  enableExecutionLogging?: boolean;
+  
+  // Error handling
+  onConnectionError?: (error: Error) => void;
+}
+
+// Configure services
+function configureForASPNETBackend(config: BackendConfiguration) {
+  // Set up API service
+  apiService.baseUrl = config.apiBaseUrl;
+  if (config.apiVersion) {
+    apiService.defaultHeaders['X-API-Version'] = config.apiVersion;
+  }
+  if (config.authToken) {
+    apiService.setAuthToken(config.authToken);
+  }
+  
+  // Configure workflow service
+  const workflowServiceOptions = {
+    hubUrl: config.hubUrl,
+    reconnectAttempts: config.reconnectAttempts || 5,
+    reconnectInterval: config.reconnectInterval || 2000,
+    enableLiveUpdates: config.enableLiveUpdates !== false,
+    enableExecutionLogging: config.enableExecutionLogging !== false
+  };
+  
+  // Initialize workflow service
+  return workflowService.init(workflowServiceOptions)
+    .catch(error => {
+      if (config.onConnectionError) {
+        config.onConnectionError(error);
+      }
+      throw error;
+    });
+}
+```
+
+## Accessibility Considerations
+
+The workflow editor components should adhere to WCAG 2.1 AA standards, including:
+
+1. **Keyboard Navigation**
+   - All interactive elements must be focusable
+   - Tab order should be logical and follow the visual flow
+   - Keyboard shortcuts for common actions
+
+2. **Screen Reader Support**
+   - Proper ARIA attributes for custom UI components
+   - Meaningful text alternatives for visual elements
+   - Announcements for dynamic content changes
+
+3. **Color and Contrast**
+   - Sufficient contrast ratio for text and UI elements
+   - Not relying solely on color to convey information
+   - Support for high contrast mode
+
+4. **Responsive Design**
+   - Components adapt to different screen sizes
+   - Support for zoom and text resizing
+   - Touch-friendly targets for mobile devices
+
+## Error Handling Patterns
+
+1. **Service-Level Errors**
+   - API request failures
+   - SignalR connection issues
+   - Authentication/authorization failures
+
+2. **Component-Level Errors**
+   - Invalid props
+   - State validation failures
+   - Rendering exceptions
+
+3. **User Input Validation**
+   - Property editor validation
+   - Workflow structure validation
+   - Execution input validation
+
+4. **Error Boundary Implementation**
+   - Each major component should be wrapped in an error boundary
+   - Fallback UI for component failures
+   - Error reporting to monitoring systems
+
+## Performance Expectations
+
+1. **Rendering Performance**
+   - Initial load time < 2 seconds
+   - Smooth interaction at 60 FPS
+   - Efficient re-rendering with React.memo and useMemo
+
+2. **Large Workflow Support**
+   - Handle workflows with 100+ nodes
+   - Virtualization for large node lists
+   - Efficient SVG rendering for connections
+
+3. **Memory Management**
+   - Proper cleanup of event listeners
+   - Avoid memory leaks in component lifecycle
+   - Efficient state management
+
+## Browser Compatibility
+
+The workflow editor should support the following browsers:
+
+- Chrome (latest 2 versions)
+- Firefox (latest 2 versions)
+- Safari (latest 2 versions)
+- Edge (latest 2 versions)
+
+Mobile support is considered secondary but should be functional on:
+- iOS Safari
+- Chrome for Android
