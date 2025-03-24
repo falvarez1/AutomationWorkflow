@@ -47,7 +47,7 @@ The workflow is represented as a directed acyclic graph (DAG) with:
 git clone https://github.com/falvarez1/AutomationWorkflow.git
 
 # Navigate to the project directory
-cd automation-workflow
+cd AutomationWorkflow
 
 # Install dependencies
 npm install
