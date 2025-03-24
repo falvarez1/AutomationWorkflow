@@ -4,8 +4,7 @@ import {
   Zap, 
   Hexagon, 
   GitBranch, 
-  GitMerge,
-  Plus 
+  GitMerge
 } from 'lucide-react';
 import { CONNECTION_TYPES, NODE_TYPES, MENU_PLACEMENT } from '../constants';
 

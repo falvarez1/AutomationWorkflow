@@ -159,7 +159,7 @@ export const DEFAULT_CONTEXT_MENU_CONFIG = Object.freeze({
 
 /**
  * Menu placement configuration
- * Controls how context menus are displayed relative to buttons
+ * Controls how add step menus are displayed relative to buttons
  */
 export const MENU_PLACEMENT = {
   // Whether menus should be attached to canvas (true) or fixed to screen (false)
@@ -167,6 +167,9 @@ export const MENU_PLACEMENT = {
   
   // Vertical offset for menus from their anchor points
   MENU_VERTICAL_OFFSET: -70,
+  
+  // Whether clicking outside the menu automatically closes it
+  CLICK_OUTSIDE_CLOSES_MENU: true,
   
   // Animation settings
   ANIMATE_MENUS: true,
