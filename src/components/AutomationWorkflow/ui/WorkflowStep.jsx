@@ -269,7 +269,7 @@ const WorkflowStep = ({
       data-node-id={id}
       data-node-element="true"
       data-was-just-clicked={wasJustClicked ? "true" : "false"}
-      className={`p-4 bg-white border-2 ${isSelected ? config.selectedColor : config.borderColor} ${!isDragging && config.hoverColor} rounded-lg ${isDragging ? 'shadow-xl' : 'shadow-sm hover:shadow-md'} ${config.bgHover}`}
+      className={`p-4 bg-white border border-l-4 ${isSelected ? config.selectedColor : config.borderColor} ${!isDragging && config.hoverColor} rounded-lg ${isDragging ? 'shadow-xl' : 'shadow-sm hover:shadow-md'} ${config.bgHover}`}
       onMouseDown={handleMouseDown}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
