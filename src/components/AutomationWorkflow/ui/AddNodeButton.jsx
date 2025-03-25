@@ -70,7 +70,7 @@ const AddNodeButton = ({
       // Just update refs if only highlight changed
       lastHighlightedRef.current = isHighlighted;
     }
-  }, [position.x, position.y, isHighlighted, onMouseEnter]);
+  }, [position.x, position.y, isHighlighted, onMouseEnter, position]);
   
   return (
     <div

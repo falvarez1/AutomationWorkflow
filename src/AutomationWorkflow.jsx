@@ -204,38 +204,30 @@ const handleNodeHeightChange = useCallback((id, height) => {
   });
 }, []);
 
-  // Close menus when clicking outside or on another node
+  // Close menus when clicking or dragging nodes
   useEffect(() => {
-    // Handle click outside events
-    const handleClickOutside = (e) => {
-      // Check if auto-close on outside click is enabled
-      const clickOutsideClosesMenu = MENU_PLACEMENT.CLICK_OUTSIDE_CLOSES_MENU;
+    // Handle click/touch events
+    const handleClickOrDrag = (e) => {
+      // Always proceed (ignoring CLICK_OUTSIDE_CLOSES_MENU setting)
       
-      // If auto-close is disabled, we don't need to proceed
-      if (!clickOutsideClosesMenu) return;
-      
-      // Check if clicking on a node or node-related element
+      // Check what was clicked
       const clickedNodeElement = e.target.closest('[data-node-element="true"]');
       const isClickingAddButton = clickedNodeElement && clickedNodeElement.classList.contains('add-node-button');
-      const isClickingNode = clickedNodeElement && !isClickingAddButton;
-      const isClickingMenu = e.target.closest('.node-menu');
+      const isClickingMenu = e.target.closest('[data-menu-element="true"]');
       
       // Check if we're interacting with any menu
       if (menuState.activeNodeId !== null) {
-        // Close menu when clicking on any node that's not an add button
-        if (isClickingNode) {
-          handleCloseMenu();
-        }
-        // Or when clicking anywhere else (except the menu or add button)
-        else if (!isClickingMenu && !isClickingAddButton) {
+        // Per requirements: only keep menu open when mousing over menu or add button
+        // Close menu in all other cases
+        if (!isClickingMenu && !isClickingAddButton) {
           handleCloseMenu();
         }
       }
     };
     
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOrDrag);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOrDrag);
     };
   }, [menuState, handleCloseMenu]);
   
@@ -702,9 +694,9 @@ const handleNodeHeightChange = useCallback((id, height) => {
     // Save the start position for the move command
     setDragStartPosition({ ...position });
     
-    // We no longer set justClickedNodeRef.current to true during drag
-    // This allows menus to auto-hide even when dragging nodes
-  }, []);
+    // Explicitly close the menu when drag starts
+    handleCloseMenu();
+  }, [handleCloseMenu]);
   
   // Handle node drag end
   const handleNodeDragEnd = useCallback((id) => {

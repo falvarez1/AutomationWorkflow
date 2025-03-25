@@ -54,20 +54,21 @@ const BaseMenu = ({
   
   // Calculate position based on attachment mode
   let menuStyle = {
-      left: menuPosition.x,
-      top: menuPosition.y + MENU_PLACEMENT.MENU_VERTICAL_OFFSET,
-      transform: 'translateX(-50%)',
-      position: 'fixed',
-      zIndex: MENU_PLACEMENT.MENU_Z_INDEX
-    };
-
+    left: menuPosition.x,
+    top: menuPosition.y + MENU_PLACEMENT.MENU_VERTICAL_OFFSET,
+    transform: 'translateX(-50%)',
+    position: 'fixed',
+    zIndex: MENU_PLACEMENT.MENU_Z_INDEX
+  };
+  
   
   return (
-    <div 
+    <div
       className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 node-menu absolute"
       style={menuStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      data-menu-element="true"
     >
       {children}
     </div>
