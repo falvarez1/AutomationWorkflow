@@ -111,7 +111,7 @@ export const calculateBranchConnectionPoints = (
 
 /**
  * Calculates menu position based on node and menu state
- * 
+ *
  * @param {Object} menuState - Current menu state
  * @param {Object} workflowGraph - Graph instance
  * @param {Object} transform - Current canvas transform
@@ -121,28 +121,42 @@ export const calculateBranchConnectionPoints = (
  * @returns {Object} The calculated menu position {x, y}
  */
 export const getMenuPosition = (
-  menuState, 
-  workflowGraph, 
-  transform, 
+  menuState,
+  workflowGraph,
+  transform,
   getBranchEndpointFn,
   buttonYOffset = LAYOUT.BUTTON.Y_OFFSET,
   isAttachedToCanvas = MENU_PLACEMENT.ATTACH_TO_CANVAS
 ) => {
   const { activeNodeId, activeBranch, position: anchorPosition, menuType } = menuState;
+  
+  // Handle AddNodeButton position directly
+  if (anchorPosition && (menuType === 'addButton' || !activeNodeId)) {
+    // For both attached and non-attached cases, return viewport coordinates
+    // The BaseMenu component will apply the transform if needed
+    return {
+      x: anchorPosition.x,
+      y: anchorPosition.y + (anchorPosition.height || 0) + MENU_PLACEMENT.MENU_VERTICAL_OFFSET
+    };
+  }
+  
   if (!activeNodeId) return { x: 0, y: 0 };
   
   const sourceNode = workflowGraph.getNode(activeNodeId);
   if (!sourceNode) return { x: 0, y: 0 };
   
+
   // Branch specific position
   if (activeBranch && (menuType === 'branch' || menuType === 'branchEdge')) {
     if (isAttachedToCanvas) {
-      // Position menu relative to the node in graph coordinates
+      // When attached to canvas (rendered inside the transform div),
+      // positions should be in graph coordinates WITHOUT transform adjustments
+      // since the menu already inherits transform from its parent
       if (anchorPosition) {
-        // Convert screen coords to graph coords
+        
         return {
-          x: (anchorPosition.x - transform.x) / transform.scale,
-          y: (anchorPosition.y + anchorPosition.height/2 + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET - transform.y) / transform.scale
+          x: anchorPosition.x,
+          y: anchorPosition.y + anchorPosition.height/2 + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET
         };
       } else {
         const branchEndpoint = getBranchEndpointFn(sourceNode, activeBranch);
@@ -164,21 +178,22 @@ export const getMenuPosition = (
         };
       }
     }
-  } 
+  }
   // Standard node position
   else {
     if (isAttachedToCanvas) {
-      // Position menu in graph coordinates (part of the canvas transform)
       if (anchorPosition) {
-        // Convert screen coords to graph coords
+        // Use viewport coordinates directly (BaseMenu will handle transform)
         return {
-          x: (anchorPosition.x - transform.x) / transform.scale,
-          y: (anchorPosition.y + anchorPosition.height/2 + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET - transform.y) / transform.scale
+          x: anchorPosition.x,
+          y: anchorPosition.y + (anchorPosition.height || 0) + buttonYOffset + MENU_PLACEMENT.MENU_VERTICAL_OFFSET
         };
       } else {
+        // For source node-based positions, convert graph to viewport coordinates
+        // so the transform can be applied consistently in BaseMenu
         return {
-          x: sourceNode.position.x + (LAYOUT.NODE.DEFAULT_WIDTH / 2),
-          y: sourceNode.position.y + (sourceNode.height || LAYOUT.NODE.DEFAULT_HEIGHT) + buttonYOffset + LAYOUT.BUTTON.SIZE + 10
+          x: sourceNode.position.x * transform.scale + transform.x + (LAYOUT.NODE.DEFAULT_WIDTH / 2) * transform.scale,
+          y: (sourceNode.position.y + (sourceNode.height || LAYOUT.NODE.DEFAULT_HEIGHT) + buttonYOffset + LAYOUT.BUTTON.SIZE + 10) * transform.scale + transform.y
         };
       }
     } else {

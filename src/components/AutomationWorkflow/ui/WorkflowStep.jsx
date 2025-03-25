@@ -151,36 +151,42 @@ const WorkflowStep = ({
   };
 
   const handleMouseDown = (e) => {
-    if (e.button !== 0) return; // Only handle left-click
-
-    // Set the clicked flag to prevent deselection
-    setWasJustClicked(true);
-
-    // Calculate the offset between mouse position and element position
-    const rect = nodeRef.current.getBoundingClientRect();
-
-    // Prevent division by zero or negative scale values
-    const safeScale = Math.max(transform.scale, 0.1);
-    
-    // Calculate X coordinate conversion from screen to canvas
-    const offsetX = (e.clientX - rect.left) / safeScale;
-   
-    let headerHeight = calculateHeaderHeight() || headerHeightRef.current || 0; // Fallback to 0 if headerHeight is not set
-
-    // Get the current header height and apply proper scaling
-    const scaledHeaderOffset = headerHeight / safeScale;
-    const offsetY = (e.clientY - rect.top) / safeScale + scaledHeaderOffset;
-
-    setDragOffset({ x: offsetX, y: offsetY });
-    setIsDragging(true);
-
-    if (onDragStart) {
-      onDragStart(id, position);
-    }
-
-    e.preventDefault();
-    e.stopPropagation();
-  };
+      if (e.button !== 0) return; // Only handle left-click
+  
+      // Set the clicked flag to prevent deselection
+      setWasJustClicked(true);
+  
+      // If we have click props, manually trigger any node click behavior
+      // This ensures the menu closes immediately on mousedown, not waiting for click
+      if (onClick) {
+        onClick(id);
+      }
+  
+      // Calculate the offset between mouse position and element position
+      const rect = nodeRef.current.getBoundingClientRect();
+  
+      // Prevent division by zero or negative scale values
+      const safeScale = Math.max(transform.scale, 0.1);
+      
+      // Calculate X coordinate conversion from screen to canvas
+      const offsetX = (e.clientX - rect.left) / safeScale;
+     
+      let headerHeight = calculateHeaderHeight() || headerHeightRef.current || 0; // Fallback to 0 if headerHeight is not set
+  
+      // Get the current header height and apply proper scaling
+      const scaledHeaderOffset = headerHeight / safeScale;
+      const offsetY = (e.clientY - rect.top) / safeScale + scaledHeaderOffset;
+  
+      setDragOffset({ x: offsetX, y: offsetY });
+      setIsDragging(true);
+  
+      if (onDragStart) {
+        onDragStart(id, position);
+      }
+  
+      e.preventDefault();
+      e.stopPropagation();
+    };
 
   useEffect(() => {
     if (!isDragging) return;

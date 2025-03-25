@@ -211,33 +211,53 @@ const handleNodeHeightChange = useCallback((id, height) => {
       // Check if auto-close on outside click is enabled
       const clickOutsideClosesMenu = MENU_PLACEMENT.CLICK_OUTSIDE_CLOSES_MENU;
       
-      // If auto-close is disabled, we don't need to proceed
-      if (!clickOutsideClosesMenu) return;
+      // If auto-close is disabled or we're currently panning, we don't need to proceed
+      if (!clickOutsideClosesMenu || isPanning) return;
       
       // Check if clicking on a node or node-related element
-      const clickedNodeElement = e.target.closest('[data-node-element="true"]');
-      const isClickingAddButton = clickedNodeElement && clickedNodeElement.classList.contains('add-node-button');
-      const isClickingNode = clickedNodeElement && !isClickingAddButton;
-      const isClickingMenu = e.target.closest('.node-menu');
-      
-      // Check if we're interacting with any menu
-      if (menuState.activeNodeId !== null) {
-        // Close menu when clicking on any node that's not an add button
-        if (isClickingNode) {
-          handleCloseMenu();
-        }
-        // Or when clicking anywhere else (except the menu or add button)
-        else if (!isClickingMenu && !isClickingAddButton) {
-          handleCloseMenu();
-        }
-      }
+          const clickedNodeElement = e.target.closest('[data-node-element="true"]');
+          const isClickingAddButton = clickedNodeElement && clickedNodeElement.classList.contains('add-node-button');
+          const isClickingNode = clickedNodeElement && !isClickingAddButton;
+          const isClickingMenu = e.target.closest('.node-menu');
+          
+          // Check if we're interacting with any menu
+          if (menuState.activeNodeId !== null) {
+            // Always close menu when clicking on any node (immediate)
+            if (isClickingNode) {
+              handleCloseMenu();
+            }
+            // When clicking anywhere else except menu or add button,
+            // let the menu close naturally with its existing timer
+            // UNLESS it's a direct click on a node (handled above)
+            else if (!isClickingMenu && !isClickingAddButton) {
+              // Don't close menu immediately - let the regular auto-hide timer handle it
+              // We'll cancel this action if it turns into a drag
+            }
+          }
+    };
+    
+    // Remove the mouse move handler that was canceling the menu close timer
+    // This allows the menu's built-in auto-hide timer to continue running during canvas drag
+    const handleMouseMove = (e) => {
+      // No special handling needed - we want the menu's regular timer to continue
     };
     
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousemove', handleMouseMove);
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousemove', handleMouseMove);
+      
+      // Clear timer on cleanup
+      if (mouseTimerRef.current && mouseTimerRef.current.timer) {
+        clearTimeout(mouseTimerRef.current.timer);
+      }
     };
-  }, [menuState, handleCloseMenu]);
+  }, [menuState, handleCloseMenu, isPanning]);
+  
+  // Add ref to track mouse timer for click vs. drag detection
+  const mouseTimerRef = useRef(null);
   
   // Add a ref to track if we just clicked a node
   const justClickedNodeRef = useRef(false);
@@ -246,6 +266,9 @@ const handleNodeHeightChange = useCallback((id, height) => {
   const mouseDownPosRef = useRef(null);
   const isDraggingRef = useRef(false);
   
+  // Add a ref to track canvas dragging specifically for menu behavior
+  const isCanvasDraggingRef = useRef(false);
+  
   // Modified handle canvas mouse down to respect just-clicked nodes
   const handleCanvasMouseDown = (e) => {
     // Check if the click was on the canvas background
@@ -253,6 +276,12 @@ const handleNodeHeightChange = useCallback((id, height) => {
     
     // Only start panning if clicking on the canvas (not on a node)
     if (e.button === 0 && !isClickingNode) {
+      // Cancel any pending menu close timer
+      if (mouseTimerRef.current && mouseTimerRef.current.timer) {
+        clearTimeout(mouseTimerRef.current.timer);
+        mouseTimerRef.current = null;
+      }
+      
       // This is a direct click on the canvas background
       setIsPanning(true);
       setStartPanPos({ x: e.clientX - transform.x, y: e.clientY - transform.y });
@@ -260,6 +289,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
       // Save the initial mouse position to determine if this becomes a drag or a click
       mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
       isDraggingRef.current = false;
+      isCanvasDraggingRef.current = false; // Reset canvas dragging state
       
       e.preventDefault();
     }
@@ -282,6 +312,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
         // If moved more than 5px, consider it a drag
         if (dx > 5 || dy > 5) {
           isDraggingRef.current = true;
+          isCanvasDraggingRef.current = true; // Set canvas dragging to true when movement detected
         }
       }
       
@@ -302,6 +333,11 @@ const handleNodeHeightChange = useCallback((id, height) => {
       if (!isDraggingRef.current && !justClickedNodeRef.current) {
         setSelectedNodeId(null);
       }
+      
+      // Small timeout to ensure click handlers run before we reset the dragging state
+      setTimeout(() => {
+        isCanvasDraggingRef.current = false;
+      }, 0);
       
       // Reset tracking refs
       mouseDownPosRef.current = null;
@@ -652,6 +688,11 @@ const handleNodeHeightChange = useCallback((id, height) => {
       }
     }
     
+    // Close any open menu when clicking on any node
+    if (menuState.activeNodeId !== null) {
+      handleCloseMenu();
+    }
+    
     // Always select the node on click (no toggling anymore)
     setSelectedNodeId(id);
     justClickedNodeRef.current = true;
@@ -660,7 +701,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
     setTimeout(() => {
       justClickedNodeRef.current = false;
     }, 200);
-  }, [handleDeleteNode, workflowGraph, generateUniqueId]);
+  }, [handleDeleteNode, workflowGraph, generateUniqueId, menuState, handleCloseMenu]);
   
   // Handle node drag with grid snapping
   const handleNodeDrag = useCallback((id, x, y) => {
@@ -1177,7 +1218,6 @@ const handleNodeHeightChange = useCallback((id, height) => {
               />
             ))}
 
-            {/* Replace renderAddNodeButtons() call with AddNodeButtonRenderer component */}
             <AddNodeButtonRenderer
               workflowGraph={workflowGraph}
               menuState={menuState}

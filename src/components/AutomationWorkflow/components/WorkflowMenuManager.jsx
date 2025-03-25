@@ -31,6 +31,25 @@ const WorkflowMenuManager = ({
 
   // Determine which menu to show based on menu type
   const renderMenus = () => {
+    // Handle direct position from AddNodeButton with no active node
+    if (menuState.position && (menuState.menuType === 'addButton' || !menuState.activeNodeId)) {
+      const position = calculateMenuPosition();
+      
+      return (
+        <NodeMenu
+          isOpen={true}
+          onClose={onCloseMenu}
+          sourceNodeId={menuState.activeNodeId || 'none'} // Use 'none' as fallback
+          activeBranchInfo={null}
+          menuPosition={position}
+          transform={transform}
+          buttonYOffset={buttonYOffset}
+          onAddNode={onAddNode}
+        />
+      );
+    }
+    
+    // For traditional node-based menus, require an active node ID
     if (!menuState.activeNodeId) return null;
     
     const position = calculateMenuPosition();
@@ -52,7 +71,7 @@ const WorkflowMenuManager = ({
     }
     
     // Branch-specific menu
-    if ((menuState.menuType === 'branch' || menuState.menuType === 'branchEdge') && 
+    if ((menuState.menuType === 'branch' || menuState.menuType === 'branchEdge') &&
         menuState.activeBranch) {
       return (
         <BranchMenu

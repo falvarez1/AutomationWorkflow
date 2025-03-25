@@ -166,7 +166,10 @@ export const MENU_PLACEMENT = {
   ATTACH_TO_CANVAS: true,
   
   // Vertical offset for menus from their anchor points
-  MENU_VERTICAL_OFFSET: -70,
+  MENU_VERTICAL_OFFSET: -120,
+
+  // Horizontal offset for menus from their anchor points
+  MENU_HORIZONTAL_OFFSET: 0,
   
   // Whether clicking outside the menu automatically closes it
   CLICK_OUTSIDE_CLOSES_MENU: true,
