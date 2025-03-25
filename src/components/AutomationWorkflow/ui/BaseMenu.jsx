@@ -54,26 +54,14 @@ const BaseMenu = ({
   if (!isOpen) return null;
   
   // Calculate position based on attachment mode
-  let menuStyle = {};
-  
-  if (MENU_PLACEMENT.ATTACH_TO_CANVAS) {
-    // Position within canvas transform
-    menuStyle = {
-      left: `${menuPosition.x}px`,
-      top: `${menuPosition.y}px`,
-      transform: 'translateX(-50%)',
-      zIndex: MENU_PLACEMENT.MENU_Z_INDEX
-    };
-  } else {
-    // Fixed position (outside transform)
-    menuStyle = {
+  let menuStyle = {
       left: menuPosition.x,
       top: menuPosition.y + MENU_PLACEMENT.MENU_VERTICAL_OFFSET,
       transform: 'translateX(-50%)',
       position: 'fixed',
       zIndex: MENU_PLACEMENT.MENU_Z_INDEX
     };
-  }
+
   
   return (
     <div 

@@ -162,11 +162,12 @@ export const DEFAULT_CONTEXT_MENU_CONFIG = Object.freeze({
  * Controls how add step menus are displayed relative to buttons
  */
 export const MENU_PLACEMENT = {
-  // Whether menus should be attached to canvas (true) or fixed to screen (false)
-  ATTACH_TO_CANVAS: true,
   
   // Vertical offset for menus from their anchor points
-  MENU_VERTICAL_OFFSET: -70,
+  MENU_VERTICAL_OFFSET: 10,
+
+  // Horizontal offset for menus from their anchor points
+  MENU_HORIZONTAL_OFFSET: 0,
   
   // Whether clicking outside the menu automatically closes it
   CLICK_OUTSIDE_CLOSES_MENU: true,

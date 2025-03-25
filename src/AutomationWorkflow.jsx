@@ -246,7 +246,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
   const mouseDownPosRef = useRef(null);
   const isDraggingRef = useRef(false);
   
-  // Modified handle canvas mouse down to respect just-clicked nodes
+  // Handle canvas mouse down
   const handleCanvasMouseDown = (e) => {
     // Check if the click was on the canvas background
     const isClickingNode = e.target.closest('[data-node-element="true"]');
@@ -264,8 +264,9 @@ const handleNodeHeightChange = useCallback((id, height) => {
       e.preventDefault();
     }
     
-    // Reset the just clicked ref
-    justClickedNodeRef.current = isClickingNode && 
+    // We still track genuine clicks on nodes (not drag operations)
+    // This helps with node selection behavior but doesn't interfere with menu auto-hiding
+    justClickedNodeRef.current = isClickingNode &&
       isClickingNode.getAttribute('data-was-just-clicked') === 'true';
   };
   
@@ -636,7 +637,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
               if (result && duplicateCommand.newNodeId) {
                 // Start animation for the new node
                 animationManager.startAnimation(
-                  duplicateCommand.newNodeId, 
+                  duplicateCommand.newNodeId,
                   'nodeAdd'
                 );
               }
@@ -654,6 +655,9 @@ const handleNodeHeightChange = useCallback((id, height) => {
     
     // Always select the node on click (no toggling anymore)
     setSelectedNodeId(id);
+    
+    // We still set justClickedNodeRef for actual clicks (not for drag operations)
+    // This helps prevent node deselection on legitimate clicks
     justClickedNodeRef.current = true;
     
     // Clear this flag after a short delay
@@ -698,9 +702,8 @@ const handleNodeHeightChange = useCallback((id, height) => {
     // Save the start position for the move command
     setDragStartPosition({ ...position });
     
-    // Set the currently dragging node ID to prevent canvas panning
-    // when dragging a node
-    justClickedNodeRef.current = true;
+    // We no longer set justClickedNodeRef.current to true during drag
+    // This allows menus to auto-hide even when dragging nodes
   }, []);
   
   // Handle node drag end
@@ -713,8 +716,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
     // Get final position from the temp drag position we stored
     const currentPosition = node._currentDragPosition || node.position;
     
-    // Reset the dragging flag
-    justClickedNodeRef.current = false;
+    // No longer need to reset the dragging flag since we don't set it during drag start
     
     // Only create a command if the position actually changed
     if (dragStartPosition.x !== currentPosition.x || dragStartPosition.y !== currentPosition.y) {
@@ -1188,18 +1190,6 @@ const handleNodeHeightChange = useCallback((id, height) => {
               edgeInputYOffset={edgeInputYOffset}
               edgeOutputYOffset={edgeOutputYOffset}
             />
-
-            {/* Render menus inside canvas if attached to canvas */}
-            {MENU_PLACEMENT.ATTACH_TO_CANVAS && (
-              <WorkflowMenuManager
-                menuState={menuState}
-                workflowGraph={workflowGraph}
-                transform={transform}
-                buttonYOffset={buttonYOffset}
-                onAddNode={handleAddStep}
-                onCloseMenu={handleCloseMenu}
-              />
-            )}
           </div>
 
           {/* Floating controls for zoom and reset (fixed position) */}
@@ -1262,17 +1252,14 @@ const handleNodeHeightChange = useCallback((id, height) => {
             </button>
           </div>
 
-          {/* Render menus outside canvas if not attached to canvas */}
-          {!MENU_PLACEMENT.ATTACH_TO_CANVAS && (
-            <WorkflowMenuManager
-              menuState={menuState}
-              workflowGraph={workflowGraph}
-              transform={transform}
-              buttonYOffset={buttonYOffset}
-              onAddNode={handleAddStep}
-              onCloseMenu={handleCloseMenu}
-            />
-          )}
+          <WorkflowMenuManager
+            menuState={menuState}
+            workflowGraph={workflowGraph}
+            transform={transform}
+            buttonYOffset={buttonYOffset}
+            onAddNode={handleAddStep}
+            onCloseMenu={handleCloseMenu}
+          />          
         </div>
         ) : (
           /* Execution view */
