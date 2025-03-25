@@ -54,6 +54,7 @@ import {
 
 // Import constants
 import {
+  LAYOUT,
   DEFAULT_NODE_HEIGHT,
   DEFAULT_NODE_WIDTH,
   GRID_SIZE,
@@ -75,7 +76,9 @@ import {
   BRANCH_VERTICAL_SPACING,
   BRANCH_LEFT_OFFSET,
   BRANCH_RIGHT_OFFSET,
-  MENU_PLACEMENT
+  MENU_PLACEMENT,
+  // Add new mouse control imports
+  MOUSE_CONTROLS
 } from './components/AutomationWorkflow/constants';
 
 // Add imports for the services at the top of the file
@@ -177,8 +180,8 @@ const AutomationWorkflow = ({
   // Helper function to calculate branch endpoints for ifelse and splitflow nodes
   const getBranchEndpoint = useCallback((node, branchId) => {
     return BranchUtils.getBranchEndpoint(node, branchId, {
-      DEFAULT_NODE_WIDTH,
-      DEFAULT_NODE_HEIGHT,
+      DEFAULT_NODE_WIDTH: LAYOUT.NODE.DEFAULT_WIDTH,
+      DEFAULT_NODE_HEIGHT: LAYOUT.NODE.DEFAULT_HEIGHT,
       BRANCH_VERTICAL_SPACING: 40
     });
   }, []);
@@ -316,8 +319,15 @@ const handleNodeHeightChange = useCallback((id, height) => {
   // Smooth zoom with wheel
   useEffect(() => {
     const handleWheel = (e) => {
-      // If Ctrl or Meta key is pressed, handle as zoom
-      if (e.ctrlKey || e.metaKey) {
+      // Determine if we should zoom or pan based on configuration
+      const shouldZoom = MOUSE_CONTROLS.WHEEL_ZOOMS 
+        ? !(MOUSE_CONTROLS.ZOOM_TOGGLE_KEY && e.getModifierState(MOUSE_CONTROLS.ZOOM_TOGGLE_KEY)) // Default to zoom unless toggle key is pressed
+        : (MOUSE_CONTROLS.ZOOM_TOGGLE_KEY && e.getModifierState(MOUSE_CONTROLS.ZOOM_TOGGLE_KEY)); // Default to pan unless toggle key is pressed
+      
+      // For backward compatibility - still allow Ctrl/Meta to always trigger zoom
+      const forceZoom = e.ctrlKey || e.metaKey;
+      
+      if (shouldZoom || forceZoom) {
         e.preventDefault();
         
         // Calculate zoom point (mouse position)
@@ -330,25 +340,44 @@ const handleNodeHeightChange = useCallback((id, height) => {
         const graphY = (mouseY - transform.y) / transform.scale;
         
         // Calculate zoom factor based on delta magnitude
-        // This makes it less sensitive for trackpads which often generate small delta values
         const absDelta = Math.abs(e.deltaY);
         
-        // Reduced sensitivity factor (smaller number = less sensitive)
-        const sensitivity = 0.009;
+        // Use configured sensitivity
+        const sensitivity = MOUSE_CONTROLS.ZOOM_SENSITIVITY;
         
-        // Calculate a proportional zoom factor based on the scroll amount
-        // Clamp it to a reasonable range to prevent too aggressive zooming
-        const baseZoomChange = Math.min(Math.max(absDelta * sensitivity, 0.01), 0.05);
+        // Apply min/max zoom change constraints
+        const baseZoomChange = Math.min(Math.max(absDelta * sensitivity, MOUSE_CONTROLS.MIN_ZOOM_CHANGE), MOUSE_CONTROLS.MAX_ZOOM_CHANGE);
         
-        // Apply direction (zoom in or out)
-        const zoomFactor = e.deltaY < 0
-          ? 1 + baseZoomChange  // Zoom in: slightly above 1 (e.g., 1.01 to 1.05)
-          : 1 - baseZoomChange; // Zoom out: slightly below 1 (e.g., 0.99 to 0.95)
+        // Apply direction (zoom in or out), respecting invert setting
+        let zoomFactor;
+        if (MOUSE_CONTROLS.INVERT_ZOOM) {
+          zoomFactor = e.deltaY > 0
+            ? 1 + baseZoomChange  // Inverted: scroll down = zoom in
+            : 1 - baseZoomChange; // Inverted: scroll up = zoom out
+        } else {
+          zoomFactor = e.deltaY < 0
+            ? 1 + baseZoomChange  // Normal: scroll up = zoom in
+            : 1 - baseZoomChange; // Normal: scroll down = zoom out
+        }
         
         setTransform(prev => {
           const newScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev.scale * zoomFactor));
           
-          // Adjust position to zoom toward mouse point
+          // If ZOOM_TO_CURSOR is false, zoom toward center of screen instead
+          if (!MOUSE_CONTROLS.ZOOM_TO_CURSOR) {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            const centerGraphX = (centerX - prev.x) / prev.scale;
+            const centerGraphY = (centerY - prev.y) / prev.scale;
+            
+            return {
+              x: centerX - centerGraphX * newScale,
+              y: centerY - centerGraphY * newScale,
+              scale: newScale
+            };
+          }
+          
+          // Default: Adjust position to zoom toward mouse point
           const newX = mouseX - graphX * newScale;
           const newY = mouseY - graphY * newScale;
           
@@ -359,7 +388,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
           };
         });
       } 
-      // If no modifier keys, handle as touchpad panning
+      // If not zooming, handle as panning
       else {
         e.preventDefault();
         

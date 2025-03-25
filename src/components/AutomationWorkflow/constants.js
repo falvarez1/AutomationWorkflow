@@ -175,7 +175,7 @@ export const MENU_PLACEMENT = {
   ANIMATE_MENUS: true,
   
   // Z-index for menus
-  MENU_Z_INDEX: 20,
+  MENU_Z_INDEX: 55,
   
   // Width of node type buttons in the menu
   NODE_BUTTON_WIDTH: 20,
@@ -183,6 +183,36 @@ export const MENU_PLACEMENT = {
   // Height of node type buttons in the menu
   NODE_BUTTON_HEIGHT: 20
 };
+
+/**
+ * Mouse controls configuration
+ * Controls how mouse interactions behave with the canvas
+ */
+export const MOUSE_CONTROLS = {
+  // Whether mouse wheel should zoom by default (without modifier keys)
+  WHEEL_ZOOMS: true,
+  
+  // Whether to invert the zoom direction
+  INVERT_ZOOM: false,
+  
+  // Sensitivity for zoom operations (lower = less sensitive)
+  ZOOM_SENSITIVITY: 0.0009,
+  
+  // Minimum zoom change per scroll event
+  MIN_ZOOM_CHANGE: 0.01,
+  
+  // Maximum zoom change per scroll event
+  MAX_ZOOM_CHANGE: 0.05,
+  
+  // Modifier key to toggle between zoom and scroll behaviors
+  // If WHEEL_ZOOMS is true, holding this key will cause the wheel to scroll
+  // If WHEEL_ZOOMS is false, holding this key will cause the wheel to zoom
+  TOGGLE_KEY: 'Alt', // 'Alt', 'Shift', 'Control', or null for no toggle
+  
+  // Whether to maintain the mouse position as the zoom center
+  ZOOM_TO_CURSOR: true
+};
+
 
 /**
  * Safely get window dimensions with fallback values for SSR environments

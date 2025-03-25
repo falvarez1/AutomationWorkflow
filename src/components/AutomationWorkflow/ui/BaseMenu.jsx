@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MENU_PLACEMENT } from '../constants';
 
 /**
@@ -15,7 +15,7 @@ const BaseMenu = ({
 }) => {
   // Auto-hide timer state
   const menuHideTimerRef = useRef(null);
-  const [isMouseOver, setIsMouseOver] = useState(false);
+  // Removed unused isMouseOver state as it is not used
   
   // Clear and start timer functions
   const clearHideTimer = () => {
@@ -25,24 +25,21 @@ const BaseMenu = ({
     }
   };
   
-  const startHideTimer = () => {
+  const startHideTimer = useCallback(() => {
     clearHideTimer();
     menuHideTimerRef.current = setTimeout(() => {
       onClose();
     }, autoHideTimeout);
-  };
+  }, [onClose, autoHideTimeout]);
   
   // Mouse event handlers
   const handleMouseEnter = () => {
     clearHideTimer();
-    setIsMouseOver(true);
   };
   
   const handleMouseLeave = () => {
-    setIsMouseOver(false);
     startHideTimer();
   };
-  
   // Start/clear timer when menu opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -52,7 +49,7 @@ const BaseMenu = ({
     }
     
     return () => clearHideTimer();
-  }, [isOpen, autoHideTimeout]);
+  }, [isOpen, autoHideTimeout, startHideTimer]);
   
   if (!isOpen) return null;
   
