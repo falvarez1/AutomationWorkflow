@@ -15,7 +15,6 @@ const BaseMenu = ({
 }) => {
   // Auto-hide timer state
   const menuHideTimerRef = useRef(null);
-  // Removed unused isMouseOver state as it is not used
   
   // Clear and start timer functions
   const clearHideTimer = () => {

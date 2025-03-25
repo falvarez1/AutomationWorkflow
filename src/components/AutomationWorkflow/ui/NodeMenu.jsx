@@ -16,7 +16,6 @@ const NodeMenu = ({
   activeBranchInfo, 
   menuPosition, 
   transform, 
-  buttonYOffset,
   onAddNode 
 }) => {
   // Handle node selection with branch info
