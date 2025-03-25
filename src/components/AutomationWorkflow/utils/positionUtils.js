@@ -1,4 +1,5 @@
 import { LAYOUT, MENU_PLACEMENT } from '../constants';
+import { animateCanvasPan } from './AnimationManager';
 
 /**
  * Calculates the endpoint position for a branch connection
@@ -164,4 +165,78 @@ export const getMenuPosition = (
       };
     }
   }
+};
+
+/**
+ * Checks if an element is visible in the viewport and pans if needed
+ *
+ * @param {Object} elementRect - Rectangle representing element boundaries
+ * @param {Object} transform - Current transform state
+ * @param {Function} setTransform - State setter function for transform
+ * @param {boolean} propertyPanelOpen - Whether property panel is open
+ * @returns {boolean} Whether panning was needed
+ */
+export const ensureElementVisibility = (
+  elementRect,
+  transform,
+  setTransform,
+  propertyPanelOpen = false
+) => {
+  // Handle both rectangle formats (left/right/top/bottom and x/y/width/height)
+  let normalizedRect;
+  
+  if ('x' in elementRect && 'width' in elementRect) {
+    // Convert center-based buttonRect to left/right/top/bottom format
+    normalizedRect = {
+      left: elementRect.x - elementRect.width / 2,
+      right: elementRect.x + elementRect.width / 2,
+      top: elementRect.y - elementRect.height / 2,
+      bottom: elementRect.y + elementRect.height / 2
+    };
+  } else {
+    // Already in correct format
+    normalizedRect = elementRect;
+  }
+  
+  // Get viewport dimensions
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const propertyPanelWidth = propertyPanelOpen ? 484 : 0; // Width of the properties panel
+  
+  // Calculate element position in viewport coordinates
+  const elementInViewport = {
+    left: normalizedRect.left * transform.scale + transform.x,
+    right: normalizedRect.right * transform.scale + transform.x,
+    top: normalizedRect.top * transform.scale + transform.y,
+    bottom: normalizedRect.bottom * transform.scale + transform.y
+  };
+  
+  // Define minimum padding from edges
+  const padding = 30; // Increased padding for better visibility
+  
+  // Calculate required panning amounts
+  let panX = 0, panY = 0;
+  
+  // Check horizontal visibility (accounting for properties panel)
+  if (elementInViewport.right > viewportWidth - propertyPanelWidth - padding) {
+    panX = viewportWidth - propertyPanelWidth - elementInViewport.right - padding;
+  } else if (elementInViewport.left < padding) {
+    panX = padding - elementInViewport.left;
+  }
+  
+  // Check vertical visibility with extra attention to bottom edge
+  if (elementInViewport.bottom > viewportHeight - padding) {
+    // Ensure there's enough padding at the bottom
+    panY = viewportHeight - elementInViewport.bottom - padding;
+  } else if (elementInViewport.top < padding) {
+    panY = padding - elementInViewport.top;
+  }
+  
+  // Smoothly animate panning if needed
+  if (panX !== 0 || panY !== 0) {
+    animateCanvasPan(transform.x, transform.y, panX, panY, setTransform);
+    return true;
+  }
+  
+  return false;
 };

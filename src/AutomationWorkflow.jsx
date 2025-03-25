@@ -24,7 +24,9 @@ import {
 // Import command utilities
 import { executeGraphCommand } from './components/AutomationWorkflow/utils/commandUtils';
 import { BranchUtils } from './components/AutomationWorkflow/utils/BranchUtils';
-import { animationManager } from './components/AutomationWorkflow/utils/AnimationManager';
+import { animationManager, animateCanvasPan } from './components/AutomationWorkflow/utils/AnimationManager';
+import { ensureElementVisibility } from './components/AutomationWorkflow/utils/positionUtils';
+import { generateUniqueId } from './components/AutomationWorkflow/utils/GeneralUtils';
 
 // Import the plugin registry and plugins
 import { pluginRegistry } from './components/AutomationWorkflow/plugins/registry';
@@ -439,109 +441,13 @@ const handleNodeHeightChange = useCallback((id, height) => {
   const resetView = () => {
     setTransform({ x: 0, y: 0, scale: 1 });
   };
-  
-    // Utility function to smoothly animate canvas panning
-    const animateCanvasPan = useCallback((deltaX, deltaY) => {
-      const duration = 300; // ms
-      const startTime = Date.now();
-      const startX = transform.x;
-      const startY = transform.y;
-      const targetX = transform.x + deltaX;
-      const targetY = transform.y + deltaY;
-      
-      const animatePan = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // Ease out cubic function for smooth deceleration
-        const easeProgress = 1 - Math.pow(1 - progress, 3);
-        
-        const newX = startX + (targetX - startX) * easeProgress;
-        const newY = startY + (targetY - startY) * easeProgress;
-        
-        setTransform(prev => ({
-          ...prev,
-          x: newX,
-          y: newY
-        }));
-        
-        if (progress < 1) {
-          requestAnimationFrame(animatePan);
-        }
-      };
-      
-      requestAnimationFrame(animatePan);
-    }, [transform]);
 
-  // Utility function to check if an element is visible in the viewport and pan if needed
-  const ensureElementVisibility = useCallback((elementRect, propertyPanelOpen = false) => {
-    // Handle both rectangle formats (left/right/top/bottom and x/y/width/height)
-    let normalizedRect;
-    
-    if ('x' in elementRect && 'width' in elementRect) {
-      // Convert center-based buttonRect to left/right/top/bottom format
-      normalizedRect = {
-        left: elementRect.x - elementRect.width / 2,
-        right: elementRect.x + elementRect.width / 2,
-        top: elementRect.y - elementRect.height / 2,
-        bottom: elementRect.y + elementRect.height / 2
-      };
-    } else {
-      // Already in correct format
-      normalizedRect = elementRect;
-    }
-    
-    // Get viewport dimensions
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const propertyPanelWidth = propertyPanelOpen ? 484 : 0; // Width of the properties panel
-    
-    // Calculate element position in viewport coordinates
-    const elementInViewport = {
-      left: normalizedRect.left * transform.scale + transform.x,
-      right: normalizedRect.right * transform.scale + transform.x,
-      top: normalizedRect.top * transform.scale + transform.y,
-      bottom: normalizedRect.bottom * transform.scale + transform.y
-    };
-    
-    // Define minimum padding from edges
-    const padding = 30; // Increased padding for better visibility
-    
-    // Calculate required panning amounts
-    let panX = 0, panY = 0;
-    
-    // Check horizontal visibility (accounting for properties panel)
-    if (elementInViewport.right > viewportWidth - propertyPanelWidth - padding) {
-      panX = viewportWidth - propertyPanelWidth - elementInViewport.right - padding;
-    } else if (elementInViewport.left < padding) {
-      panX = padding - elementInViewport.left;
-    }
-    
-    // Check vertical visibility with extra attention to bottom edge
-    if (elementInViewport.bottom > viewportHeight - padding) {
-      // Ensure there's enough padding at the bottom
-      panY = viewportHeight - elementInViewport.bottom - padding;
-      console.log('Bottom occlusion detected, panning by:', panY);
-    } else if (elementInViewport.top < padding) {
-      panY = padding - elementInViewport.top;
-    }
-    
-    // Smoothly animate panning if needed
-    if (panX !== 0 || panY !== 0) {
-      console.log('Panning by:', panX, panY);
-      animateCanvasPan(panX, panY);
-      return true;
-    }
-    
-    return false;
-  }, [transform, animateCanvasPan]);
   
   
   // State to track animating nodes
   const [animatingNodes, setAnimatingNodes] = useState([]);
   
   // Helper functions
-  const generateUniqueId = useCallback(() => `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, []);
 
   // Helper functions for default node properties
   const getDefaultTitle = useCallback((nodeType) => {
@@ -596,7 +502,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
       ...initialProps,
       ...overrides
     };
-  }, [getDefaultTitle, getDefaultSubtitle, generateUniqueId]);
+  }, [getDefaultTitle, getDefaultSubtitle]);
 
   // Handle adding a new step
   const handleAddStep = useCallback((nodeId, nodeType, connectionType = CONNECTION_TYPES.DEFAULT, branchId = null) => {
@@ -716,7 +622,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
           const duplicateCommand = new DuplicateNodeCommand(
             workflowGraph,
             id,
-            generateUniqueId,
+            generateUniqueId, // Using imported util function
             50, // X offset
             50  // Y offset
           );
@@ -755,7 +661,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
       
       // Check if node would be occluded and pan if needed
       // Pass true for propertyPanelOpen since selecting the node will open the panel
-      ensureElementVisibility(nodeRect, true);
+      ensureElementVisibility(nodeRect, transform, setTransform, true);
     }
     
     // Always select the node on click (no toggling anymore)
@@ -769,7 +675,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
     setTimeout(() => {
       justClickedNodeRef.current = false;
     }, 200);
-  }, [handleDeleteNode, workflowGraph, generateUniqueId, ensureElementVisibility]);
+  }, [handleDeleteNode, workflowGraph, transform, setTransform]);
   
   // Handle node drag with grid snapping
   const handleNodeDrag = useCallback((id, x, y) => {
