@@ -27,6 +27,7 @@ import { BranchUtils } from './components/AutomationWorkflow/utils/BranchUtils';
 import { animationManager, animateCanvasPan } from './components/AutomationWorkflow/utils/AnimationManager';
 import { ensureElementVisibility } from './components/AutomationWorkflow/utils/positionUtils';
 import { generateUniqueId } from './components/AutomationWorkflow/utils/GeneralUtils';
+import { getDefaultTitle, getDefaultSubtitle, createNewNode } from './components/AutomationWorkflow/utils/NodeUtils';
 
 // Import the plugin registry and plugins
 import { pluginRegistry } from './components/AutomationWorkflow/plugins/registry';
@@ -449,61 +450,6 @@ const handleNodeHeightChange = useCallback((id, height) => {
   
   // Helper functions
 
-  // Helper functions for default node properties
-  const getDefaultTitle = useCallback((nodeType) => {
-    switch (nodeType) {
-      case NODE_TYPES.TRIGGER:
-        return 'New Trigger';
-      case NODE_TYPES.CONTROL:
-        return 'New Control';
-      case NODE_TYPES.ACTION:
-        return 'New Action';
-      case NODE_TYPES.IFELSE:
-        return 'New If/Else';
-      case NODE_TYPES.SPLITFLOW:
-        return 'New Split Flow';
-      default:
-        return 'New Step';
-    }
-  }, []);
-
-  const getDefaultSubtitle = useCallback((nodeType) => {
-    switch (nodeType) {
-      case NODE_TYPES.TRIGGER:
-        return 'Configure this trigger';
-      case NODE_TYPES.CONTROL:
-        return 'Configure this control';
-      case NODE_TYPES.ACTION:
-        return 'Configure this action';
-      case NODE_TYPES.IFELSE:
-        return 'Configure condition';
-      case NODE_TYPES.SPLITFLOW:
-        return 'Configure split conditions';
-      default:
-        return 'Configure properties';
-    }
-  }, []);
-  
-  // Create a new node with the specified properties
-  const createNewNode = useCallback((nodeType, position, overrides = {}) => {
-    // Get any initial properties from the node plugin
-    const nodePlugin = pluginRegistry.getNodeType(nodeType);
-    const initialProps = nodePlugin.getInitialProperties ? nodePlugin.getInitialProperties() : {};
-    
-    return {
-      id: generateUniqueId(),
-      type: nodeType,
-      position,
-      height: DEFAULT_NODE_HEIGHT,
-      isNew: true,
-      contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
-      title: getDefaultTitle(nodeType),
-      subtitle: getDefaultSubtitle(nodeType),
-      ...initialProps,
-      ...overrides
-    };
-  }, [getDefaultTitle, getDefaultSubtitle]);
-
   // Handle adding a new step
   const handleAddStep = useCallback((nodeId, nodeType, connectionType = CONNECTION_TYPES.DEFAULT, branchId = null) => {
     const sourceNode = workflowGraph.getNode(nodeId);
@@ -533,7 +479,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
     }
     
     // Create new node
-    const newNode = createNewNode(nodeType, newPos);
+    const newNode = createNewNode(nodeType, newPos, pluginRegistry);
     
     // Create and execute the add node command
     const addNodeCommand = new AddNodeCommand(
@@ -557,9 +503,9 @@ const handleNodeHeightChange = useCallback((id, height) => {
     
     // Close menu
     handleCloseMenu();
-  }, [workflowGraph, createNewNode, getBranchEndpoint, 
-    standardVerticalSpacing, branchVerticalSpacing, 
-    branchLeftOffset, branchRightOffset, handleCloseMenu]);
+  }, [workflowGraph, createNewNode, getBranchEndpoint,
+    standardVerticalSpacing, branchVerticalSpacing,
+    branchLeftOffset, branchRightOffset, handleCloseMenu, pluginRegistry]);
 
   // Initialize command manager and listen for changes
   useEffect(() => {
