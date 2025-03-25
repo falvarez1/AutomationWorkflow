@@ -163,7 +163,7 @@ export const DEFAULT_CONTEXT_MENU_CONFIG = Object.freeze({
  */
 export const MENU_PLACEMENT = {
   // Whether menus should be attached to canvas (true) or fixed to screen (false)
-  ATTACH_TO_CANVAS: true,
+  ATTACH_TO_CANVAS: false,
   
   // Vertical offset for menus from their anchor points
   MENU_VERTICAL_OFFSET: -120,
