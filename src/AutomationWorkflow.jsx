@@ -1,6 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Plus,
   ZoomIn,
   ZoomOut,
   Maximize,
@@ -11,23 +10,12 @@ import {
 
 // Import Graph and command pattern components
 import { Graph } from './components/AutomationWorkflow/graph/Graph';
-import {
-  commandManager,
-  AddNodeCommand,
-  MoveNodeCommand,
-  DeleteNodeCommand,
-  UpdateNodeCommand,
-  UpdateNodeHeightCommand,
-  DuplicateNodeCommand
-} from './components/AutomationWorkflow/commands';
+import { commandManager } from './components/AutomationWorkflow/commands';
 
-// Import command utilities
-import { executeGraphCommand } from './components/AutomationWorkflow/utils/commandUtils';
+// Import utility modules
 import { BranchUtils } from './components/AutomationWorkflow/utils/BranchUtils';
-import { animationManager, animateCanvasPan } from './components/AutomationWorkflow/utils/AnimationManager';
-import { ensureElementVisibility } from './components/AutomationWorkflow/utils/positionUtils';
+import { animationManager } from './components/AutomationWorkflow/utils/AnimationManager';
 import { generateUniqueId } from './components/AutomationWorkflow/utils/GeneralUtils';
-import { getDefaultTitle, getDefaultSubtitle, createNewNode } from './components/AutomationWorkflow/utils/NodeUtils';
 
 // Import the plugin registry and plugins
 import { pluginRegistry } from './components/AutomationWorkflow/plugins/registry';
@@ -39,21 +27,11 @@ import { SplitFlowNodePlugin } from './components/AutomationWorkflow/plugins/Spl
 
 // Import UI components
 import WorkflowStep from './components/AutomationWorkflow/ui/WorkflowStep';
-// Remove NodeMenu and BranchMenu imports as they're used by WorkflowMenuManager
 import ConnectionRenderer from './components/AutomationWorkflow/components/ConnectionRenderer';
 import AddNodeButtonRenderer from './components/AutomationWorkflow/components/AddNodeButtonRenderer';
 import WorkflowMenuManager from './components/AutomationWorkflow/components/WorkflowMenuManager';
-
-// Import the NodePropertiesPanel
 import { NodePropertiesPanel } from './components/AutomationWorkflow/NodeProperties';
-
-// Import built-in controls
-import {
-  TextInputControl,
-  SelectControl,
-  NumberControl,
-  CheckboxControl
-} from './components/AutomationWorkflow/controls';
+import ExecuteWorkflowDialog from './components/AutomationWorkflow/components/ExecuteWorkflowDialog';
 
 // Import constants
 import {
@@ -80,17 +58,64 @@ import {
   BRANCH_LEFT_OFFSET,
   BRANCH_RIGHT_OFFSET,
   MENU_PLACEMENT,
-  // Add new mouse control imports
   MOUSE_CONTROLS
 } from './components/AutomationWorkflow/constants';
 
-// Add imports for the services at the top of the file
-import { workflowService } from './services/workflowService';
+// Import custom hooks
+import { useCanvasState } from './components/AutomationWorkflow/hooks/useCanvasState';
+import { useWorkflowState } from './components/AutomationWorkflow/hooks/useWorkflowState';
 
-// Add import at the top
-import ExecuteWorkflowDialog from './components/AutomationWorkflow/components/ExecuteWorkflowDialog';
+// Import event handlers
+import {
+  handleCanvasMouseDown,
+  handleWheel,
+  handleMouseMove,
+  handleMouseUp
+} from './components/AutomationWorkflow/handlers/CanvasEventHandlers';
 
-// Register node types
+import {
+  handleNodeHeightChange,
+  handleStepClick,
+  handleNodeDrag,
+  handleNodeDragStart,
+  handleNodeDragEnd,
+  handleUpdateNodeProperty,
+  handleDeleteNode
+} from './components/AutomationWorkflow/handlers/NodeEventHandlers';
+
+import {
+  handleCloseMenu,
+  handleShowMenu,
+  handleShowAddMenu,
+  handleShowBranchEndpointMenu,
+  handleShowBranchEdgeMenu,
+  setupMenuCloseHandlers
+} from './components/AutomationWorkflow/handlers/MenuEventHandlers';
+
+import {
+  handleAddStep,
+  handleUndo,
+  handleRedo
+} from './components/AutomationWorkflow/handlers/WorkflowEventHandlers';
+
+// Import backend service integration
+import {
+  initWorkflowService,
+  loadWorkflowFromBackend,
+  saveWorkflowToBackend,
+  executeWorkflow,
+  getWorkflowInputSchema
+} from './components/AutomationWorkflow/services/workflowServiceIntegration';
+
+// Import built-in controls
+import {
+  TextInputControl,
+  SelectControl,
+  NumberControl,
+  CheckboxControl
+} from './components/AutomationWorkflow/controls';
+
+// Register node types (keep this part outside the component)
 pluginRegistry.registerNodeType(TriggerNodePlugin);
 pluginRegistry.registerNodeType(ControlNodePlugin);
 pluginRegistry.registerNodeType(ActionNodePlugin);
@@ -101,37 +126,64 @@ pluginRegistry.registerPropertyControl(TextInputControl);
 pluginRegistry.registerPropertyControl(SelectControl);
 pluginRegistry.registerPropertyControl(NumberControl);
 pluginRegistry.registerPropertyControl(CheckboxControl);
-
 // Main Automation Workflow Component
-const AutomationWorkflow = ({ 
+const AutomationWorkflow = ({
   initialWorkflowSteps = INITIAL_WORKFLOW_STEPS,
-  workflowId = null, // Add workflowId prop for loading from backend
-  gridOptions = {}, 
+  workflowId = null,
+  gridOptions = {},
   nodePlacementOptions = {},
-  readonly = false, // Add readonly mode
-  onExecutionStatusChange = null // Callback for execution status changes
+  readonly = false,
+  onExecutionStatusChange = null
 }) => {
-  // Canvas pan and zoom state
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: .8 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [startPanPos, setStartPanPos] = useState({ x: 0, y: 0 });
+  // Use custom hooks for state management
   const canvasRef = useRef(null);
-  const transformRef = useRef(transform);
-  
-  // Keep transform ref updated with latest value
-  useEffect(() => {
-    transformRef.current = transform;
-  }, [transform]);
-  
-  // Add state for undo/redo capabilities
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
+  const justClickedNodeRef = useRef(false);
+  const mouseDownPosRef = useRef(null);
+  const isDraggingRef = useRef(false);
 
-  // Initialize the graph state from the initial workflow steps
-  const [workflowGraph, setWorkflowGraph] = useState(() => 
-    Graph.fromWorkflowSteps(initialWorkflowSteps)
-  );
+  // Use custom hooks for state management
+  const canvasState = useCanvasState(0.8);
+  const workflowState = useWorkflowState(initialWorkflowSteps);
+  
+  // Extract values from canvasState
+  const {
+    transform,
+    setTransform,
+    isPanning,
+    setIsPanning,
+    startPanPos,
+    setStartPanPos,
+    transformRef,
+    resetView,
+    handleZoom
+  } = canvasState;
+  
+  // Extract values from workflowState
+  const {
+    workflowGraph,
+    setWorkflowGraph,
+    workflowSteps,
+    selectedNodeId,
+    setSelectedNodeId,
+    selectedNode,
+    menuState,
+    setMenuState,
+    handleCloseMenu: closeMenu,
+    dragStartPosition,
+    setDragStartPosition,
+    canUndo,
+    canRedo,
+    handleUndo: undoAction,
+    handleRedo: redoAction
+  } = workflowState;
 
+  // Additional state
+  const [activeTab, setActiveTab] = useState('flow');
+  const [showExecuteDialog, setShowExecuteDialog] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [isLoading, setIsLoading] = useState(false);
+  const [animatingNodes, setAnimatingNodes] = useState([]);
+  
   // Get grid settings with defaults from constants
   const showGrid = gridOptions.showGrid !== undefined ? gridOptions.showGrid : SHOW_GRID;
   const gridDotSize = gridOptions.gridDotSize || GRID_DOT_SIZE;
@@ -147,630 +199,10 @@ const AutomationWorkflow = ({
   const branchLeftOffset = nodePlacementOptions.branchLeftOffset || BRANCH_LEFT_OFFSET;
   const branchRightOffset = nodePlacementOptions.branchRightOffset || BRANCH_RIGHT_OFFSET;
 
-  // State for selection and UI interactions
-  const [activeTab, setActiveTab] = useState('flow');
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [dragStartPosition, setDragStartPosition] = useState(null);
-  
-  // Consolidated menu close handlers
-  const handleCloseMenu = useCallback(() => {
-    setMenuState({ activeNodeId: null, activeBranch: null, position: null, menuType: null });
-  }, []);
-
-  // Consolidated state for all menu handling
-  const [menuState, setMenuState] = useState({
-    activeNodeId: null,
-    activeBranch: null,
-    position: null,
-    menuType: null // 'add', 'branch', or 'branchEdge'
-  });
-  
-  // Convert graph nodes to array for rendering compatibility
-  const workflowSteps = useMemo(() => {
-    return workflowGraph.getAllNodes();
-  }, [workflowGraph]);
-
-  // Find the currently selected node
-  const selectedNode = useMemo(() => {
-    return selectedNodeId ? workflowGraph.getNode(selectedNodeId) : null;
-  }, [workflowGraph, selectedNodeId]);
-
   // Configurable offsets
   const [buttonYOffset] = useState(BUTTON_Y_OFFSET);
   const [edgeInputYOffset] = useState(EDGE_INPUT_Y_OFFSET);
   const [edgeOutputYOffset] = useState(EDGE_OUTPUT_Y_OFFSET);
-  
-  // Helper function to calculate branch endpoints for ifelse and splitflow nodes
-  const getBranchEndpoint = useCallback((node, branchId) => {
-    return BranchUtils.getBranchEndpoint(node, branchId, {
-      DEFAULT_NODE_WIDTH: LAYOUT.NODE.DEFAULT_WIDTH,
-      DEFAULT_NODE_HEIGHT: LAYOUT.NODE.DEFAULT_HEIGHT,
-      BRANCH_VERTICAL_SPACING: 40
-    });
-  }, []);
-
-// Handler for node height changes
-const handleNodeHeightChange = useCallback((id, height) => {
-  setWorkflowGraph(prevGraph => {
-    const newGraph = new Graph();
-    
-    // Copy all nodes and edges
-    prevGraph.getAllNodes().forEach(node => {
-      newGraph.addNode(node.id === id ? { ...node, height } : node);
-    });
-    
-    prevGraph.getAllEdges().forEach(edge => {
-      newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-    });
-    
-    return newGraph;
-  });
-}, []);
-
-  // Close menus when clicking or dragging nodes
-  useEffect(() => {
-    // Handle click/touch events
-    const handleClickOrDrag = (e) => {
-      // Always proceed (ignoring CLICK_OUTSIDE_CLOSES_MENU setting)
-      
-      // Check what was clicked
-      const clickedNodeElement = e.target.closest('[data-node-element="true"]');
-      const isClickingAddButton = clickedNodeElement && clickedNodeElement.classList.contains('add-node-button');
-      const isClickingMenu = e.target.closest('[data-menu-element="true"]');
-      
-      // Check if we're interacting with any menu
-      if (menuState.activeNodeId !== null) {
-        // Per requirements: only keep menu open when mousing over menu or add button
-        // Close menu in all other cases
-        if (!isClickingMenu && !isClickingAddButton) {
-          handleCloseMenu();
-        }
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOrDrag);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOrDrag);
-    };
-  }, [menuState, handleCloseMenu]);
-  
-  // Add a ref to track if we just clicked a node
-  const justClickedNodeRef = useRef(false);
-  
-  // Add these refs to track drag vs click behavior
-  const mouseDownPosRef = useRef(null);
-  const isDraggingRef = useRef(false);
-  
-  // Handle canvas mouse down
-  const handleCanvasMouseDown = (e) => {
-    // Check if the click was on the canvas background
-    const isClickingNode = e.target.closest('[data-node-element="true"]');
-    
-    // Only start panning if clicking on the canvas (not on a node)
-    if (e.button === 0 && !isClickingNode) {
-      // This is a direct click on the canvas background
-      setIsPanning(true);
-      setStartPanPos({ x: e.clientX - transform.x, y: e.clientY - transform.y });
-      
-      // Save the initial mouse position to determine if this becomes a drag or a click
-      mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
-      isDraggingRef.current = false;
-      
-      e.preventDefault();
-    }
-    
-    // We still track genuine clicks on nodes (not drag operations)
-    // This helps with node selection behavior but doesn't interfere with menu auto-hiding
-    justClickedNodeRef.current = isClickingNode &&
-      isClickingNode.getAttribute('data-was-just-clicked') === 'true';
-  };
-  
-  // Handle canvas mouse move for panning with improved smoothness
-  useEffect(() => {
-    if (!isPanning) return;
-    
-    const handleMouseMove = (e) => {
-      // Check if we've moved enough to consider this a drag
-      if (mouseDownPosRef.current) {
-        const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
-        const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
-        
-        // If moved more than 5px, consider it a drag
-        if (dx > 5 || dy > 5) {
-          isDraggingRef.current = true;
-        }
-      }
-      
-      requestAnimationFrame(() => {
-        setTransform(prev => ({
-          ...prev,
-          x: e.clientX - startPanPos.x,
-          y: e.clientY - startPanPos.y
-        }));
-      });
-    };
-    
-    const handleMouseUp = (e) => {
-      setIsPanning(false);
-      
-      // Only deselect node if this was a clean click (not a drag)
-      // and we're not clicking on a node
-      if (!isDraggingRef.current && !justClickedNodeRef.current) {
-        setSelectedNodeId(null);
-      }
-      
-      // Reset tracking refs
-      mouseDownPosRef.current = null;
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isPanning, startPanPos]);
-  
-  // Smooth zoom with wheel
-  useEffect(() => {
-    const handleWheel = (e) => {
-      // Determine if we should zoom or pan based on configuration
-      const shouldZoom = MOUSE_CONTROLS.WHEEL_ZOOMS 
-        ? !(MOUSE_CONTROLS.ZOOM_TOGGLE_KEY && e.getModifierState(MOUSE_CONTROLS.ZOOM_TOGGLE_KEY)) // Default to zoom unless toggle key is pressed
-        : (MOUSE_CONTROLS.ZOOM_TOGGLE_KEY && e.getModifierState(MOUSE_CONTROLS.ZOOM_TOGGLE_KEY)); // Default to pan unless toggle key is pressed
-      
-      // For backward compatibility - still allow Ctrl/Meta to always trigger zoom
-      const forceZoom = e.ctrlKey || e.metaKey;
-      
-      if (shouldZoom || forceZoom) {
-        e.preventDefault();
-        
-        // Calculate zoom point (mouse position)
-        const rect = canvasRef.current.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        
-        // Calculate point in graph coordinates
-        const graphX = (mouseX - transform.x) / transform.scale;
-        const graphY = (mouseY - transform.y) / transform.scale;
-        
-        // Calculate zoom factor based on delta magnitude
-        const absDelta = Math.abs(e.deltaY);
-        
-        // Use configured sensitivity
-        const sensitivity = MOUSE_CONTROLS.ZOOM_SENSITIVITY;
-        
-        // Apply min/max zoom change constraints
-        const baseZoomChange = Math.min(Math.max(absDelta * sensitivity, MOUSE_CONTROLS.MIN_ZOOM_CHANGE), MOUSE_CONTROLS.MAX_ZOOM_CHANGE);
-        
-        // Apply direction (zoom in or out), respecting invert setting
-        let zoomFactor;
-        if (MOUSE_CONTROLS.INVERT_ZOOM) {
-          zoomFactor = e.deltaY > 0
-            ? 1 + baseZoomChange  // Inverted: scroll down = zoom in
-            : 1 - baseZoomChange; // Inverted: scroll up = zoom out
-        } else {
-          zoomFactor = e.deltaY < 0
-            ? 1 + baseZoomChange  // Normal: scroll up = zoom in
-            : 1 - baseZoomChange; // Normal: scroll down = zoom out
-        }
-        
-        setTransform(prev => {
-          const newScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev.scale * zoomFactor));
-          
-          // If ZOOM_TO_CURSOR is false, zoom toward center of screen instead
-          if (!MOUSE_CONTROLS.ZOOM_TO_CURSOR) {
-            const centerX = window.innerWidth / 2;
-            const centerY = window.innerHeight / 2;
-            const centerGraphX = (centerX - prev.x) / prev.scale;
-            const centerGraphY = (centerY - prev.y) / prev.scale;
-            
-            return {
-              x: centerX - centerGraphX * newScale,
-              y: centerY - centerGraphY * newScale,
-              scale: newScale
-            };
-          }
-          
-          // Default: Adjust position to zoom toward mouse point
-          const newX = mouseX - graphX * newScale;
-          const newY = mouseY - graphY * newScale;
-          
-          return {
-            x: newX,
-            y: newY,
-            scale: newScale
-          };
-        });
-      } 
-      // If not zooming, handle as panning
-      else {
-        e.preventDefault();
-        
-        // Adjust sensitivity for touchpad panning
-        const panSensitivity = 1.0;
-        
-        // Use deltaX and deltaY for panning
-        const dx = -e.deltaX * panSensitivity;
-        const dy = -e.deltaY * panSensitivity;
-        
-        // Apply the pan using requestAnimationFrame for smoother performance
-        requestAnimationFrame(() => {
-          setTransform(prev => ({
-            ...prev,
-            x: prev.x + dx,
-            y: prev.y + dy
-          }));
-        });
-      }
-    };
-    
-    const canvasElement = canvasRef.current;
-    if (canvasElement) {
-      canvasElement.addEventListener('wheel', handleWheel, { passive: false });
-    }
-    
-    return () => {
-      if (canvasElement) {
-        canvasElement.removeEventListener('wheel', handleWheel);
-      }
-    };
-  }, [transform]);
-  
-  // Handle zoom
-  const handleZoom = (factor) => {
-    setTransform(prev => {
-      const newScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev.scale * factor));
-      // Keep the center of the view fixed when zooming with buttons
-      const centerX = window.innerWidth / 2;
-      const centerY = window.innerHeight / 2;
-      const graphX = (centerX - prev.x) / prev.scale;
-      const graphY = (centerY - prev.y) / prev.scale;
-      const newX = centerX - graphX * newScale;
-      const newY = centerY - graphY * newScale;
-      
-      return {
-        x: newX,
-        y: newY,
-        scale: newScale
-      };
-    });
-  };
-  
-  // Reset view
-  const resetView = () => {
-    setTransform({ x: 0, y: 0, scale: 1 });
-  };
-
-  
-  
-  // State to track animating nodes
-  const [animatingNodes, setAnimatingNodes] = useState([]);
-  
-  // Helper functions
-
-  // Handle adding a new step
-  const handleAddStep = useCallback((nodeId, nodeType, connectionType = CONNECTION_TYPES.DEFAULT, branchId = null) => {
-    const sourceNode = workflowGraph.getNode(nodeId);
-    if (!sourceNode) return;
-    
-    // Calculate position for new node
-    let newPos;
-    
-    if (connectionType === CONNECTION_TYPES.BRANCH && branchId) {
-      // For branch connections, use the branch endpoint position
-      const branchEndpoint = getBranchEndpoint(sourceNode, branchId);
-      const isLeftNode = branchId === 'yes' || branchId === 'path1';
-      
-      // Use configurable branch offset
-      const branchOffset = isLeftNode ? branchLeftOffset : branchRightOffset;
-  
-      newPos = {
-        x: branchEndpoint.x - (DEFAULT_NODE_WIDTH / 2) + branchOffset,
-        y: branchEndpoint.y + branchVerticalSpacing
-      };
-    } else {
-      // For standard connections, place new node below the source node
-      newPos = {
-        x: sourceNode.position.x,
-        y: sourceNode.position.y + standardVerticalSpacing
-      };
-    }
-    
-    // Create new node
-    const newNode = createNewNode(nodeType, newPos, pluginRegistry);
-    
-    // Create and execute the add node command
-    const addNodeCommand = new AddNodeCommand(
-      workflowGraph, 
-      newNode,
-      sourceNode.id,
-      connectionType,
-      branchId
-    );
-    
-    // Execute command with commandUtils
-    executeGraphCommand(addNodeCommand, commandManager, setWorkflowGraph, {
-      onExecuteSuccess: () => {
-        // Track the new node for animation
-        setAnimatingNodes(prev => [...prev, newNode.id]);
-        setTimeout(() => {
-          setAnimatingNodes(prev => prev.filter(id => id !== newNode.id));
-        }, 300);
-      }
-    });
-    
-    // Close menu
-    handleCloseMenu();
-  }, [workflowGraph, createNewNode, getBranchEndpoint,
-    standardVerticalSpacing, branchVerticalSpacing,
-    branchLeftOffset, branchRightOffset, handleCloseMenu, pluginRegistry]);
-
-  // Initialize command manager and listen for changes
-  useEffect(() => {
-    // Setup command manager listener to update undo/redo state
-    const handleCommandStateChange = (state) => {
-      setCanUndo(state.canUndo);
-      setCanRedo(state.canRedo);
-    };
-    
-    commandManager.addListener(handleCommandStateChange);
-    
-    // Update initial state
-    setCanUndo(commandManager.canUndo());
-    setCanRedo(commandManager.canRedo());
-    
-    return () => {
-      commandManager.removeListener(handleCommandStateChange);
-    };
-  }, []);
-
-  // Handle undo and redo
-  const handleUndo = () => {
-    commandManager.undo();
-  };
-
-  const handleRedo = () => {
-    commandManager.redo();
-  };
-  
-  // Handle delete node action
-  const handleDeleteNode = useCallback((nodeId) => {
-    if (!nodeId) return;
-    
-    // Create delete command
-    const deleteNodeCommand = new DeleteNodeCommand(workflowGraph, nodeId);
-    
-    // Execute command with commandUtils
-    executeGraphCommand(deleteNodeCommand, commandManager, setWorkflowGraph, {
-      onExecuteSuccess: () => {
-        // Clear selected node if it was deleted
-        if (selectedNodeId === nodeId) {
-          setSelectedNodeId(null);
-        }
-      }
-    });
-  }, [workflowGraph, selectedNodeId]);
-
-  // Handle node click for editing with improved logic
-  const handleStepClick = useCallback((id, action) => {
-    if (!id) return;
-    
-    // If an action is provided, handle the context menu action
-    if (action) {
-      switch (action) {
-        case 'delete':
-          handleDeleteNode(id);
-          return;
-        case 'duplicate':
-          // Implement duplicate functionality
-          const duplicateCommand = new DuplicateNodeCommand(
-            workflowGraph,
-            id,
-            generateUniqueId, // Using imported util function
-            50, // X offset
-            50  // Y offset
-          );
-          
-          executeGraphCommand(duplicateCommand, commandManager, setWorkflowGraph, {
-            onExecuteSuccess: (result) => {
-              if (result && duplicateCommand.newNodeId) {
-                // Start animation for the new node
-                animationManager.startAnimation(
-                  duplicateCommand.newNodeId,
-                  'nodeAdd'
-                );
-              }
-            }
-          });
-          return;
-        case 'edit':
-          // Already handled by selecting the node
-          break;
-        default:
-          // Handle other node-specific actions
-          break;
-      }
-    }
-    
-    // Get the node info to check if it would be occluded
-    const node = workflowGraph.getNode(id);
-    if (node) {
-      // Create a rectangle representing the node's boundaries
-      const nodeRect = {
-        left: node.position.x,
-        right: node.position.x + DEFAULT_NODE_WIDTH,
-        top: node.position.y,
-        bottom: node.position.y + (node.height || DEFAULT_NODE_HEIGHT)
-      };
-      
-      // Check if node would be occluded and pan if needed
-      // Pass true for propertyPanelOpen since selecting the node will open the panel
-      ensureElementVisibility(nodeRect, transform, setTransform, true);
-    }
-    
-    // Always select the node on click (no toggling anymore)
-    setSelectedNodeId(id);
-    
-    // We still set justClickedNodeRef for actual clicks (not for drag operations)
-    // This helps prevent node deselection on legitimate clicks
-    justClickedNodeRef.current = true;
-    
-    // Clear this flag after a short delay
-    setTimeout(() => {
-      justClickedNodeRef.current = false;
-    }, 200);
-  }, [handleDeleteNode, workflowGraph, transform, setTransform]);
-  
-  // Handle node drag with grid snapping
-  const handleNodeDrag = useCallback((id, x, y) => {
-    let newX = x;
-    let newY = y;
-    if (snapToGrid) {
-      newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
-      newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
-    }
-    
-    // Update the node position in the graph
-    setWorkflowGraph(prevGraph => {
-      const newGraph = new Graph();
-      
-      // Copy all nodes with updated position for the dragged node
-      prevGraph.getAllNodes().forEach(node => {
-        if (node.id === id) {
-          newGraph.addNode({ ...node, position: { x: newX, y: newY } });
-        } else {
-          newGraph.addNode({ ...node });
-        }
-      });
-      
-      // Copy all edges
-      prevGraph.getAllEdges().forEach(edge => {
-        newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-      });
-      
-      return newGraph;
-    });
-  }, [snapToGrid]);
-
-  // Handle node drag start
-  const handleNodeDragStart = useCallback((id, position) => {
-    // Save the start position for the move command
-    setDragStartPosition({ ...position });
-    
-    // Explicitly close the menu when drag starts
-    handleCloseMenu();
-  }, [handleCloseMenu]);
-  
-  // Handle node drag end
-  const handleNodeDragEnd = useCallback((id) => {
-    if (!dragStartPosition) return;
-    
-    const node = workflowGraph.getNode(id);
-    if (!node) return;
-    
-    // Get final position from the temp drag position we stored
-    const currentPosition = node._currentDragPosition || node.position;
-    
-    // No longer need to reset the dragging flag since we don't set it during drag start
-    
-    // Only create a command if the position actually changed
-    if (dragStartPosition.x !== currentPosition.x || dragStartPosition.y !== currentPosition.y) {
-      // Create a move command
-      const moveNodeCommand = new MoveNodeCommand(
-        workflowGraph,
-        id,
-        { ...dragStartPosition },
-        { ...currentPosition }
-      );
-      
-      // Execute command with commandUtils
-      executeGraphCommand(moveNodeCommand, commandManager, setWorkflowGraph);
-    } else {
-      // If position didn't change, ensure the graph state is updated with the final position
-      // This handles the case where the drag was cancelled or didn't result in movement
-      setWorkflowGraph(prevGraph => {
-        const newGraph = new Graph();
-        
-        prevGraph.getAllNodes().forEach(node => {
-          newGraph.addNode(node);
-        });
-        
-        prevGraph.getAllEdges().forEach(edge => {
-          newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-        });
-        
-        return newGraph;
-      });
-    }
-    
-    // Reset the start position
-    setDragStartPosition(null);
-  }, [workflowGraph, dragStartPosition]);
-
-  // Handle node property updates
-  const handleUpdateNodeProperty = useCallback((nodeId, propertyId, value) => {
-    if (!nodeId) return;
-    
-    // Get the current node
-    const node = workflowGraph.getNode(nodeId);
-    if (!node) return;
-    
-    // Create a command to update the property
-    const updateCommand = new UpdateNodeCommand(
-      workflowGraph,
-      nodeId,
-      {
-        properties: {
-          ...node.properties,
-          [propertyId]: value
-        }
-      }
-    );
-    
-    // Execute command with commandUtils
-    executeGraphCommand(updateCommand, commandManager, setWorkflowGraph);
-  }, [workflowGraph]);
-
-  // Consolidated function to handle all menu interactions
-  const handleShowMenu = useCallback((nodeId, menuType, branchId = null, e, buttonRect) => {
-    // Don't show menu if node doesn't exist
-    if (!workflowGraph.getNode(nodeId)) return;
-    
-    // Toggle menu state
-    setMenuState(prev => {
-      // If clicking the same button that's already active, close the menu
-      if (prev.activeNodeId === nodeId &&
-          prev.menuType === menuType &&
-          prev.activeBranch === branchId) {
-        return { activeNodeId: null, activeBranch: null, position: null, menuType: null };
-      }
-      
-      // Return the menu state
-      return {
-        activeNodeId: nodeId,
-        activeBranch: branchId,
-        position: buttonRect,
-        menuType: menuType
-      };
-    });
-    
-    e.stopPropagation();
-  }, [workflowGraph]);
-  
-  // Replace the three separate menu functions with references to the consolidated function
-  const handleShowAddMenu = useCallback((nodeId, e, buttonRect) => {
-    handleShowMenu(nodeId, 'add', null, e, buttonRect);
-  }, [handleShowMenu]);
-  
-  const handleShowBranchEndpointMenu = useCallback((nodeId, branchId, e, buttonRect) => {
-    handleShowMenu(nodeId, 'branch', branchId, e, buttonRect);
-  }, [handleShowMenu]);
-  
-  const handleShowBranchEdgeMenu = useCallback((nodeId, branchId, e, buttonRect) => {
-    handleShowMenu(nodeId, 'branchEdge', branchId, e, buttonRect);
-  }, [handleShowMenu]);
   
   // Add state for workflow metadata and execution status
   const [workflowMetadata, setWorkflowMetadata] = useState({
@@ -789,202 +221,293 @@ const handleNodeHeightChange = useCallback((id, height) => {
     errors: []
   });
 
-  // Add state for execution dialog
-  const [showExecuteDialog, setShowExecuteDialog] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const [isLoading, setIsLoading] = useState(false);
+  // Add wrapper for height change function to correctly pass parameters
+  const handleNodeHeightChangeEvent = (id, height) => {
+    handleNodeHeightChange(id, height, workflowGraph, setWorkflowGraph, commandManager);
+  };
   
-  // Get workflow input schema from trigger node
-  const getWorkflowInputSchema = useCallback(() => {
-    // Find trigger node (typically the first node)
-    const triggerNode = workflowSteps.find(node => node.type === NODE_TYPES.TRIGGER);
+  // Handler functions that use the extracted utility modules
+  const handleCanvasMouseDownEvent = (e) => {
+    // Explicitly pass the needed properties rather than the whole canvasState object
+    handleCanvasMouseDown(e, {
+      transform,
+      setIsPanning,
+      setStartPanPos
+    }, {
+      mouseDownPosRef,
+      isDraggingRef,
+      justClickedNodeRef
+    });
+  };
+
+  const handleWheelEvent = useCallback((e) => {
+    // Explicitly pass the needed properties rather than the whole canvasState object
+    handleWheel(e, {
+      transform,
+      setTransform
+    }, canvasRef);
+  }, [transform, setTransform, canvasRef]);
+
+  const handleStepClickEvent = (id, action) => {
+    handleStepClick(
+      id,
+      action,
+      workflowGraph,
+      setWorkflowGraph,
+      setSelectedNodeId,
+      transform,
+      setTransform,
+      { justClickedNodeRef },
+      handleDeleteNodeEvent,
+      commandManager,
+      generateUniqueId
+    );
+  };
+
+  const handleNodeDragEvent = (id, x, y) => {
+    handleNodeDrag(id, x, y, snapToGrid, workflowGraph, setWorkflowGraph);
+  };
+
+  const handleNodeDragStartEvent = (id, position) => {
+    handleNodeDragStart(id, position, setDragStartPosition, closeMenu);
+  };
+
+  const handleNodeDragEndEvent = (id) => {
+    handleNodeDragEnd(
+      id,
+      dragStartPosition,
+      workflowGraph,
+      setWorkflowGraph,
+      setDragStartPosition,
+      commandManager
+    );
+  };
+
+  const handleDeleteNodeEvent = (nodeId) => {
+    handleDeleteNode(
+      nodeId,
+      workflowGraph,
+      setWorkflowGraph,
+      selectedNodeId,
+      setSelectedNodeId,
+      commandManager
+    );
+  };
+
+  const handleUpdateNodePropertyEvent = (nodeId, propertyId, value) => {
+    handleUpdateNodeProperty(
+      nodeId,
+      propertyId,
+      value,
+      workflowGraph,
+      setWorkflowGraph,
+      commandManager
+    );
+  };
+
+  const handleCloseMenuEvent = useCallback(() => {
+    handleCloseMenu(setMenuState);
+  }, [setMenuState]);
+
+  const handleShowMenuEvent = useCallback((nodeId, menuType, branchId, e, buttonRect) => {
+    handleShowMenu(
+      nodeId,
+      menuType,
+      branchId,
+      e,
+      buttonRect,
+      workflowGraph,
+      setMenuState
+    );
+  }, [workflowGraph, setMenuState]);
+
+  // Use useCallback with dependencies to ensure these handlers have access to the latest workflowGraph
+  const handleShowAddMenuEvent = useCallback((nodeId, e, buttonRect) => {
+    handleShowAddMenu(nodeId, e, buttonRect, workflowGraph, setMenuState);
+  }, [workflowGraph, setMenuState]);
+
+  const handleShowBranchEndpointMenuEvent = useCallback((nodeId, branchId, e, buttonRect) => {
+    handleShowBranchEndpointMenu(nodeId, branchId, e, buttonRect, workflowGraph, setMenuState);
+  }, [workflowGraph, setMenuState]);
+
+  const handleShowBranchEdgeMenuEvent = useCallback((nodeId, branchId, e, buttonRect) => {
+    handleShowBranchEdgeMenu(nodeId, branchId, e, buttonRect, workflowGraph, setMenuState);
+  }, [workflowGraph, setMenuState]);
+
+  const handleAddStepEvent = useCallback((nodeId, nodeType, connectionType = CONNECTION_TYPES.DEFAULT, branchId = null) => {
+    const layoutConfig = {
+      standardVerticalSpacing,
+      branchVerticalSpacing,
+      branchLeftOffset,
+      branchRightOffset,
+      DEFAULT_NODE_WIDTH
+    };
+
+    handleAddStep(
+      nodeId,
+      nodeType,
+      connectionType,
+      branchId,
+      workflowGraph,
+      setWorkflowGraph,
+      commandManager,
+      (node, branchId) => BranchUtils.getBranchEndpoint(node, branchId, {
+        DEFAULT_NODE_WIDTH: LAYOUT.NODE.DEFAULT_WIDTH,
+        DEFAULT_NODE_HEIGHT: LAYOUT.NODE.DEFAULT_HEIGHT,
+        BRANCH_VERTICAL_SPACING: 40
+      }),
+      pluginRegistry,
+      layoutConfig,
+      handleCloseMenuEvent,
+      (newNode) => {
+        // Track the new node for animation
+        setAnimatingNodes(prev => [...prev, newNode.id]);
+        setTimeout(() => {
+          setAnimatingNodes(prev => prev.filter(id => id !== newNode.id));
+        }, 300);
+      }
+    );
+  }, [workflowGraph, branchLeftOffset, branchRightOffset, branchVerticalSpacing, standardVerticalSpacing, setWorkflowGraph, handleCloseMenuEvent]);
+
+  const handleShowExecuteDialogEvent = () => {
+    setShowExecuteDialog(true);
+  };
+
+  const handleExecuteWorkflowEvent = async (inputs = {}) => {
+    try {
+      if (!workflowMetadata.id) {
+        // Save workflow first if it doesn't have an ID
+        const savedWorkflow = await saveWorkflowToBackend(
+          workflowGraph,
+          workflowMetadata,
+          setWorkflowMetadata,
+          setIsLoading
+        );
+        await executeWorkflow(
+          savedWorkflow.id,
+          inputs,
+          setIsLoading,
+          setExecutionStatus,
+          setActiveTab
+        );
+      } else {
+        await executeWorkflow(
+          workflowMetadata.id,
+          inputs,
+          setIsLoading,
+          setExecutionStatus,
+          setActiveTab
+        );
+      }
+    } catch (error) {
+      console.error('Failed to execute workflow:', error);
+    }
+  };
+
+  const handleSaveWorkflowEvent = async () => {
+    try {
+      await saveWorkflowToBackend(
+        workflowGraph,
+        workflowMetadata,
+        setWorkflowMetadata,
+        setIsLoading
+      );
+      console.log('Workflow saved successfully');
+    } catch (error) {
+      console.error('Failed to save workflow:', error);
+    }
+  };
+
+  // Effect for panning with improved smoothness
+  useEffect(() => {
+    if (!isPanning) return;
     
-    if (!triggerNode) return [];
+    const handleMouseMoveEvent = (e) => {
+      handleMouseMove(e, {
+        startPanPos,
+        setTransform
+      }, {
+        mouseDownPosRef,
+        isDraggingRef
+      });
+    };
     
-    // Get input schema from the trigger node's plugin
-    const triggerPlugin = pluginRegistry.getNodeType(triggerNode.type);
-    return triggerPlugin.getInputSchema ? 
-      triggerPlugin.getInputSchema(triggerNode.properties) : [];
-  }, [workflowSteps]);
+    const handleMouseUpEvent = (e) => {
+      handleMouseUp(
+        e,
+        {
+          setIsPanning
+        },
+        {
+          isDraggingRef,
+          mouseDownPosRef,
+          justClickedNodeRef
+        },
+        () => setSelectedNodeId(null)
+      );
+    };
+    
+    document.addEventListener('mousemove', handleMouseMoveEvent);
+    document.addEventListener('mouseup', handleMouseUpEvent);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMoveEvent);
+      document.removeEventListener('mouseup', handleMouseUpEvent);
+    };
+  }, [isPanning, startPanPos, setIsPanning, setTransform, setSelectedNodeId]);
+
+  // Effect for smooth zooming with wheel
+  useEffect(() => {
+    const canvasElement = canvasRef.current;
+    if (canvasElement) {
+      canvasElement.addEventListener('wheel', handleWheelEvent, { passive: false });
+    }
+    
+    return () => {
+      if (canvasElement) {
+        canvasElement.removeEventListener('wheel', handleWheelEvent);
+      }
+    };
+  }, [transform, handleWheelEvent]);
+
+  // Effect for closing menus when clicking outside
+  useEffect(() => {
+    return setupMenuCloseHandlers(menuState, handleCloseMenuEvent);
+  }, [menuState, handleCloseMenuEvent]);
 
   // Initialize SignalR when component mounts
   useEffect(() => {
     const initBackendServices = async () => {
       try {
-        setIsLoading(true);
-        
-        // Monitor connection status
-        const removeStatusListener = workflowService.onConnectionStatusChange((status, error) => {
-          setConnectionStatus(status);
-          if (status === 'error') {
-            console.error('Connection error:', error);
-            // Could show a notification here
-          }
+        const cleanup = await initWorkflowService({
+          setIsLoading,
+          setConnectionStatus,
+          setExecutionStatus,
+          setWorkflowGraph,
+          onExecutionStatusChange,
+          workflowId
         });
         
-
-        // temporarily commented out
-      //  await workflowService.init();
-        console.log('Workflow service initialized');
-        
-        // Register for execution updates
-        const removeExecutionListener = workflowService.onExecutionUpdate(update => {
-          setExecutionStatus(prev => ({
-            ...prev,
-            ...update
-          }));
-          
-          if (onExecutionStatusChange) {
-            onExecutionStatusChange(update);
-          }
-        });
-        
-        // Register for node status updates
-        const removeNodeStatusListener = workflowService.onNodeStatusUpdate(update => {
-          // Update node status in the graph (e.g., highlighting active nodes)
-          if (update.nodeId) {
-            setWorkflowGraph(prev => {
-              const newGraph = new Graph();
-              
-              prev.getAllNodes().forEach(node => {
-                const nodeStatus = node.id === update.nodeId 
-                  ? update.status 
-                  : node.status;
-                
-                newGraph.addNode({
-                  ...node,
-                  status: nodeStatus,
-                  statusData: node.id === update.nodeId 
-                    ? update.data || {}
-                    : node.statusData
-                });
-              });
-              
-              prev.getAllEdges().forEach(edge => {
-                newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
-              });
-              
-              return newGraph;
-            });
-          }
-        });
-        
-        // Load workflow from backend if ID is provided
-        if (workflowId) {
-          await loadWorkflowFromBackend(workflowId);
-        }
-        
-        return () => {
-          removeStatusListener();
-          removeExecutionListener();
-          removeNodeStatusListener();
-        };
+        return cleanup;
       } catch (error) {
         console.error('Failed to initialize workflow service:', error);
-      } finally {
-        setIsLoading(false);
       }
     };
     
-    initBackendServices();
-  }, [workflowId, onExecutionStatusChange]);
-
-  // Function to load workflow from backend
-  const loadWorkflowFromBackend = async (id) => {
-    try {
-      setIsLoading(true);
-      const workflow = await workflowService.getWorkflow(id);
-      
-      // Update workflow metadata
-      setWorkflowMetadata({
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description,
-        lastModified: workflow.lastModified,
-        status: workflow.status
-      });
-      
-      // Convert backend workflow to graph
-      if (workflow.steps && workflow.steps.length > 0) {
-        setWorkflowGraph(Graph.fromWorkflowSteps(workflow.steps));
+    const cleanupFn = initBackendServices();
+    
+    return () => {
+      if (cleanupFn && typeof cleanupFn.then === 'function') {
+        cleanupFn.then(cleanup => {
+          if (cleanup) cleanup();
+        });
       }
-    } catch (error) {
-      console.error('Failed to load workflow:', error);
-      // Handle error (show notification, etc.)
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+  }, [workflowId, onExecutionStatusChange, setWorkflowGraph]);
 
-  // Function to save workflow to backend
-  const saveWorkflowToBackend = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Convert graph to backend workflow format
-      const workflow = {
-        id: workflowMetadata.id,
-        name: workflowMetadata.name,
-        description: workflowMetadata.description,
-        steps: workflowGraph.toWorkflowSteps()
-      };
-      
-      const savedWorkflow = await workflowService.saveWorkflow(workflow);
-      
-      // Update local state with saved data
-      setWorkflowMetadata(prev => ({
-        ...prev,
-        id: savedWorkflow.id,
-        lastModified: savedWorkflow.lastModified
-      }));
-      
-      // Show success notification
-      console.log('Workflow saved successfully');
-      return savedWorkflow;
-    } catch (error) {
-      console.error('Failed to save workflow:', error);
-      // Handle error (show notification, etc.)
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Modify execute function to show dialog instead of executing directly
-  const handleShowExecuteDialog = () => {
-    setShowExecuteDialog(true);
-  };
-
-  // Function to execute workflow
-  const executeWorkflow = async (inputs = {}) => {
-    try {
-      setIsLoading(true);
-      
-      if (!workflowMetadata.id) {
-        // Save workflow first if it doesn't have an ID
-        const savedWorkflow = await saveWorkflowToBackend();
-        await workflowService.executeWorkflow(savedWorkflow.id, inputs);
-      } else {
-        await workflowService.executeWorkflow(workflowMetadata.id, inputs);
-      }
-      
-      // Update local execution status
-      setExecutionStatus({
-        isExecuting: true,
-        currentNodeId: null,
-        progress: 0,
-        startTime: new Date(),
-        errors: []
-      });
-      
-      // Switch to execution tab to show progress
-      setActiveTab('execution');
-    } catch (error) {
-      console.error('Failed to execute workflow:', error);
-      // Handle error (show notification, etc.)
-    } finally {
-      setIsLoading(false);
-    }
+  // Get workflow input schema
+  const getWorkflowInputSchemaFn = () => {
+    return getWorkflowInputSchema(workflowSteps, pluginRegistry);
   };
 
   return (
@@ -1060,7 +583,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
                 ? 'bg-gray-400 cursor-not-allowed' 
                 : 'bg-green-600 hover:bg-green-700 text-white'
             }`}
-            onClick={handleShowExecuteDialog}
+            onClick={handleShowExecuteDialogEvent}
             disabled={executionStatus.isExecuting || readonly || connectionStatus !== 'connected'}
           >
             {executionStatus.isExecuting ? 'Executing...' : 'Execute'}
@@ -1083,7 +606,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
             backgroundSize: `${GRID_SIZE * transform.scale}px ${GRID_SIZE * transform.scale}px`,
             backgroundPosition: `${transform.x}px ${transform.y}px`
           }}
-          onMouseDown={handleCanvasMouseDown}
+          onMouseDown={handleCanvasMouseDownEvent}
         >
           {/* Canvas content with transform */}
           <div
@@ -1124,11 +647,11 @@ const handleNodeHeightChange = useCallback((id, height) => {
                 subtitle={step.subtitle}
                 position={step.position}
                 transform={transform}
-                onClick={handleStepClick}
-                onDragStart={handleNodeDragStart}
-                onDrag={handleNodeDrag}
-                onDragEnd={handleNodeDragEnd}
-                onHeightChange={handleNodeHeightChange}
+                onClick={handleStepClickEvent}
+                onDragStart={handleNodeDragStartEvent}
+                onDrag={handleNodeDragEvent}
+                onDragEnd={handleNodeDragEndEvent}
+                onHeightChange={handleNodeHeightChangeEvent}
                 isNew={step.isNew || animationManager.isAnimating(step.id)}
                 isSelected={selectedNodeId === step.id}
                 contextMenuConfig={step.contextMenuConfig}
@@ -1140,9 +663,9 @@ const handleNodeHeightChange = useCallback((id, height) => {
             <AddNodeButtonRenderer
               workflowGraph={workflowGraph}
               menuState={menuState}
-              handleShowAddMenu={handleShowAddMenu}
-              handleShowBranchEdgeMenu={handleShowBranchEdgeMenu}
-              handleShowBranchEndpointMenu={handleShowBranchEndpointMenu}
+              handleShowAddMenu={handleShowAddMenuEvent}
+              handleShowBranchEdgeMenu={handleShowBranchEdgeMenuEvent}
+              handleShowBranchEndpointMenu={handleShowBranchEndpointMenuEvent}
               pluginRegistry={pluginRegistry}
               edgeInputYOffset={edgeInputYOffset}
               edgeOutputYOffset={edgeOutputYOffset}
@@ -1214,7 +737,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
             workflowGraph={workflowGraph}
             transform={transform}
             buttonYOffset={buttonYOffset}
-            onAddNode={handleAddStep}
+            onAddNode={handleAddStepEvent}
             onCloseMenu={handleCloseMenu}
           />          
         </div>
@@ -1289,7 +812,7 @@ const handleNodeHeightChange = useCallback((id, height) => {
         isOpen={showExecuteDialog}
         onClose={() => setShowExecuteDialog(false)}
         onExecute={executeWorkflow}
-        workflowInputSchema={getWorkflowInputSchema()}
+        workflowInputSchema={getWorkflowInputSchemaFn()}
       />
     </div>
   );

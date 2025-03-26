@@ -37,7 +37,8 @@ export const initWorkflowService = async (options) => {
     });
     
     // Initialize the service
-    await workflowService.init();
+    // temporary comment out
+ //   await workflowService.init();  
     console.log('Workflow service initialized');
     
     // Register for execution updates

@@ -26,7 +26,7 @@ const WorkflowStep = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
-  const [, setNodeHeight] = useState(DEFAULT_NODE_HEIGHT); // Only the setter is used
+  const [nodeHeight, setNodeHeight] = useState(DEFAULT_NODE_HEIGHT); // Only the setter is used
   const [hasRendered, setHasRendered] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuConfig] = useState(propContextMenuConfig || {
@@ -224,18 +224,20 @@ const WorkflowStep = ({
     if (!nodeRef.current) return;
 
     const observer = new ResizeObserver(entries => {
-      const height = entries[0].contentRect.height;
-      setNodeHeight(height);
+        const newHeight = entries[0].contentRect.height;
+        if (newHeight !== nodeHeight) {  // ensure we only update when different
+            setNodeHeight(newHeight);
 
-      // Report height change to parent component
-      if (onHeightChange) {
-        onHeightChange(id, height);
-      }
+            if (onHeightChange) {
+                console.log('Node height changed:', newHeight, id);
+                onHeightChange(id, newHeight);
+            }
+        }
     });
 
     observer.observe(nodeRef.current);
     return () => observer.disconnect();
-  }, [id, onHeightChange]);
+}, [id, onHeightChange, nodeHeight]);
 
   // Determine the appropriate styles based on state
   const style = {
