@@ -33,6 +33,13 @@ import WorkflowMenuManager from './components/AutomationWorkflow/components/Work
 import { NodePropertiesPanel } from './components/AutomationWorkflow/NodeProperties';
 import ExecuteWorkflowDialog from './components/AutomationWorkflow/components/ExecuteWorkflowDialog';
 
+// Import new components for refactoring
+import ErrorBoundary from './components/AutomationWorkflow/ErrorBoundary';
+import WorkflowEditorView from './components/AutomationWorkflow/views/WorkflowEditorView';
+import ExecutionView from './components/AutomationWorkflow/views/ExecutionView';
+import TabNavigation from './components/AutomationWorkflow/navigation/TabNavigation';
+import ConnectionStatusBar from './components/AutomationWorkflow/status/ConnectionStatusBar';
+
 // Import constants
 import {
   LAYOUT,
@@ -119,6 +126,7 @@ pluginRegistry.registerPropertyControl(TextInputControl);
 pluginRegistry.registerPropertyControl(SelectControl);
 pluginRegistry.registerPropertyControl(NumberControl);
 pluginRegistry.registerPropertyControl(CheckboxControl);
+
 // Main Automation Workflow Component
 const AutomationWorkflow = ({
   initialWorkflowSteps = INITIAL_WORKFLOW_STEPS,
@@ -362,15 +370,12 @@ const AutomationWorkflow = ({
     );
   }, [workflowGraph, branchLeftOffset, branchRightOffset, branchVerticalSpacing, standardVerticalSpacing, setWorkflowGraph, handleCloseMenuEvent]);
 
-
   // Create handler for undo and redo actions
   const handleUndoEvent = () => {
-    //undoAction(workflowGraph, setWorkflowGraph, commandManager);
     handleUndo(commandManager);
   };
 
   const handleRedoEvent = () => {
-    //redoAction(workflowGraph, setWorkflowGraph, commandManager);
     handleRedo(commandManager);
   };
 
@@ -516,310 +521,94 @@ const AutomationWorkflow = ({
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Connection status indicator */}
-      {connectionStatus !== 'connected' && (
-        <div className={`text-white text-sm py-1 px-4 text-center ${
-          connectionStatus === 'reconnecting' ? 'bg-yellow-500' :
-          connectionStatus === 'error' ? 'bg-red-500' : 'bg-blue-500'
-        }`}>
-          {connectionStatus === 'reconnecting' ? 'Reconnecting to server...' :
-           connectionStatus === 'error' ? 'Connection error. Please refresh the page.' :
-           'Connecting to server...'}
-        </div>
-      )}
-      
-      {/* Loading overlay */}
-      {isLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded-lg shadow-lg">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-gray-600">Loading...</p>
-          </div>
-        </div>
-      )}
-    
-      {/* Tab navigation */}
-      <div className="flex border-b border-gray-200 bg-white shadow-sm">
-        <button
-          className={`px-5 py-4 text-sm font-medium focus:outline-none ${
-            activeTab === 'flow'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-          onClick={() => setActiveTab('flow')}
-        >
-          Workflow Editor
-        </button>
+    <ErrorBoundary>
+      <div className="flex flex-col h-screen bg-gray-50">
+        <ConnectionStatusBar status={connectionStatus} isLoading={isLoading} />
         
-        {/* Add an execution tab */}
-        <button
-          className={`px-5 py-4 text-sm font-medium focus:outline-none ${
-            activeTab === 'execution'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-          onClick={() => setActiveTab('execution')}
-        >
-          Execution
-        </button>
+        <TabNavigation 
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          readonly={readonly}
+          connectionStatus={connectionStatus}
+          isExecuting={executionStatus.isExecuting}
+          workflowMetadata={workflowMetadata}
+          onSave={handleSaveWorkflowEvent}
+          onExecute={handleShowExecuteDialogEvent}
+        />
         
-        {/* Workflow metadata display */}
-        <div className="ml-auto flex items-center pr-4">
-          <span className="text-sm text-gray-500 mr-4">
-            {workflowMetadata.name}
-            {workflowMetadata.lastModified && 
-              ` • Last saved: ${new Date(workflowMetadata.lastModified).toLocaleString()}`}
-          </span>
-          
-          {/* Save button */}
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none"
-            onClick={handleSaveWorkflowEvent}
-            disabled={readonly || connectionStatus !== 'connected'}
-          >
-            Save
-          </button>
-          
-          {/* Execute button - now opens dialog */}
-          <button
-            className={`ml-2 px-4 py-2 rounded focus:outline-none ${
-              executionStatus.isExecuting || connectionStatus !== 'connected'
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-green-600 hover:bg-green-700 text-white'
-            }`}
-            onClick={handleShowExecuteDialogEvent}
-            disabled={executionStatus.isExecuting || readonly || connectionStatus !== 'connected'}
-          >
-            {executionStatus.isExecuting ? 'Executing...' : 'Execute'}
-          </button>
-        </div>
-      </div>
-
-      {/* Main content area - add condition to show execution view */}
-      <div className="flex-grow flex overflow-hidden">
-        {activeTab === 'flow' ? (
-          /* Existing canvas area */
-          <div
-          ref={canvasRef}
-          id="workflow-canvas"
-          className="relative flex-grow overflow-hidden"
-          style={{
-            cursor: isPanning ? 'grabbing' : 'default',
-            backgroundColor: '#F9FAFB',
-            backgroundImage: showGrid ? `radial-gradient(circle, ${gridColor} ${scaledGridDotSize}px, transparent 1px)` : 'none',
-            backgroundSize: `${GRID_SIZE * transform.scale}px ${GRID_SIZE * transform.scale}px`,
-            backgroundPosition: `${transform.x}px ${transform.y}px`
-          }}
-          onMouseDown={handleCanvasMouseDownEvent}
-        >
-          {/* Canvas content with transform */}
-          <div
-            className="absolute top-0 left-0 w-full h-full transform-gpu"
-            id="canvas-content"
-            style={{
-              transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-              transformOrigin: '0 0',
-              width: '100%',
-              height: '100%',
-              overflow: 'visible' // Allow elements to extend outside container boundaries
-            }}
-          >
-            {/* SVG for connection lines */}
-            <svg
-              width="100%"
-              height="100%"
-              className="absolute top-0 left-0 pointer-events-none"
-              style={{ zIndex: 0, overflow: "visible" }}
-              preserveAspectRatio="none"
-            >
-              <ConnectionRenderer
-                workflowGraph={workflowGraph}
-                selectedNodeId={selectedNodeId}
-                pluginRegistry={pluginRegistry}
-                edgeInputYOffset={edgeInputYOffset}
-                edgeOutputYOffset={edgeOutputYOffset}
-              />
-            </svg>
-
-            {/* Workflow step nodes */}
-            {workflowSteps.map(step => (
-              <WorkflowStep
-                key={step.id}
-                id={step.id}
-                type={step.type}
-                title={step.title}
-                subtitle={step.subtitle}
-                position={step.position}
-                transform={transform}
-                onClick={handleStepClickEvent}
-                onDragStart={handleNodeDragStartEvent}
-                onDrag={handleNodeDragEvent}
-                onDragEnd={handleNodeDragEndEvent}
-                onHeightChange={handleNodeHeightChangeEvent}
-                isNew={step.isNew || animationManager.isAnimating(step.id)}
-                isSelected={selectedNodeId === step.id}
-                contextMenuConfig={step.contextMenuConfig}
-                className="draggable-node"
-              />
-            ))}
-
-            {/* Replace renderAddNodeButtons() call with AddNodeButtonRenderer component */}
-            <AddNodeButtonRenderer
+        <div className="flex-grow flex overflow-hidden">
+          {activeTab === 'flow' ? (
+            <WorkflowEditorView
+              canvasRef={canvasRef}
+              transform={transform}
+              isPanning={isPanning}
+              showGrid={showGrid}
+              gridColor={gridColor}
+              gridDotSize={scaledGridDotSize}
+              GRID_SIZE={GRID_SIZE}
+              handleCanvasMouseDown={handleCanvasMouseDownEvent}
               workflowGraph={workflowGraph}
+              workflowSteps={workflowSteps}
+              selectedNodeId={selectedNodeId}
+              handleZoom={handleZoom}
+              resetView={resetView}
+              snapToGrid={snapToGrid}
+              setSnapToGrid={setSnapToGrid}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              handleUndoEvent={handleUndoEvent}
+              handleRedoEvent={handleRedoEvent}
               menuState={menuState}
+              WorkflowMenuManager={WorkflowMenuManager}
+              handleStepClick={handleStepClickEvent}
+              handleNodeDragStart={handleNodeDragStartEvent}
+              handleNodeDrag={handleNodeDragEvent}
+              handleNodeDragEnd={handleNodeDragEndEvent}
+              handleNodeHeightChange={handleNodeHeightChangeEvent}
+              edgeInputYOffset={edgeInputYOffset}
+              edgeOutputYOffset={edgeOutputYOffset}
+              buttonYOffset={buttonYOffset}
+              animatingNodes={animatingNodes}
+              pluginRegistry={pluginRegistry}
+              // Add missing props for the edge and step buttons
+              AddNodeButtonRenderer={AddNodeButtonRenderer}
               handleShowAddMenu={handleShowAddMenuEvent}
               handleShowBranchEdgeMenu={handleShowBranchEdgeMenuEvent}
               handleShowBranchEndpointMenu={handleShowBranchEndpointMenuEvent}
-              pluginRegistry={pluginRegistry}
-              edgeInputYOffset={edgeInputYOffset}
-              edgeOutputYOffset={edgeOutputYOffset}
+              handleCloseMenu={handleCloseMenuEvent}
+              handleAddNode={handleAddStepEvent}
             />
-          </div>
-
-          {/* Floating controls for zoom and reset (fixed position) */}
-          <div className="absolute bottom-4 left-4 flex space-x-2">
-            <button
-              className="p-2 bg-white rounded-full shadow hover:bg-gray-50 focus:outline-none"
-              onClick={() => handleZoom(1.2)}
-              title="Zoom In"
-            >
-              <ZoomIn className="w-5 h-5 text-gray-700" />
-            </button>
-            <button
-              className="p-2 bg-white rounded-full shadow hover:bg-gray-50 focus:outline-none"
-              onClick={() => handleZoom(0.8)}
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-5 h-5 text-gray-700" />
-            </button>
-            <button
-              className="p-2 bg-white rounded-full shadow hover:bg-gray-50 focus:outline-none"
-              onClick={resetView}
-              title="Reset View"
-            >
-              <Maximize className="w-5 h-5 text-gray-700" />
-            </button>
-            
-            {/* Add Snap to Grid toggle button */}
-            <button
-              className={`p-2 rounded-full shadow focus:outline-none ${
-                snapToGrid ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-              onClick={() => setSnapToGrid(!snapToGrid)}
-              title={snapToGrid ? "Snap to Grid: On" : "Snap to Grid: Off"}
-            >
-              <Grid className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Undo/Redo controls */}
-          <div className="absolute top-4 left-4 flex space-x-2">
-            <button
-              className={`p-2 rounded-full shadow focus:outline-none ${
-                canUndo ? 'bg-white hover:bg-gray-50 text-gray-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
-              onClick={handleUndoEvent}
-              disabled={!canUndo}
-              title="Undo"
-            >
-              <RotateCcw className="w-5 h-5" />
-            </button>
-            <button
-              className={`p-2 rounded-full shadow focus:outline-none ${
-                canRedo ? 'bg-white hover:bg-gray-50 text-gray-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
-              onClick={handleRedoEvent}
-              disabled={!canRedo}
-              title="Redo"
-            >
-              <RotateCw className="w-5 h-5" />
-            </button>
-          </div>
-
-          <WorkflowMenuManager
-            menuState={menuState}
-            workflowGraph={workflowGraph}
-            transform={transform}
-            buttonYOffset={buttonYOffset}
-            onAddNode={handleAddStepEvent}
-            onCloseMenu={handleCloseMenu}
-          />          
-        </div>
-        ) : (
-          /* Execution view */
-          <div className="p-6 w-full overflow-auto">
-            <h2 className="text-xl font-semibold mb-4">Workflow Execution</h2>
-            
-            {executionStatus.isExecuting ? (
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="flex justify-between mb-4">
-                  <span className="font-medium">Status: Running</span>
-                  <span className="text-gray-500">
-                    Started: {executionStatus.startTime && new Date(executionStatus.startTime).toLocaleTimeString()}
-                  </span>
-                </div>
-                
-                <div className="mb-4">
-                  <div className="w-full bg-gray-200 rounded-full h-2.5">
-                    <div 
-                      className="bg-blue-600 h-2.5 rounded-full" 
-                      style={{ width: `${executionStatus.progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-                
-                {executionStatus.currentNodeId && (
-                  <div className="text-sm text-gray-600">
-                    Executing node: {
-                      workflowGraph.getNode(executionStatus.currentNodeId)?.title || 
-                      executionStatus.currentNodeId
-                    }
-                  </div>
-                )}
-                
-                {executionStatus.errors.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="text-red-600 font-medium mb-2">Errors</h3>
-                    <ul className="bg-red-50 p-3 rounded border border-red-200">
-                      {executionStatus.errors.map((error, index) => (
-                        <li key={index} className="text-red-700">{error.message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+          ) : (
+            <ExecutionView 
+              executionStatus={executionStatus}
+              workflowGraph={workflowGraph}
+            />
+          )}
+          
+          {/* Properties panel */}
+          {selectedNode && (
+            <div className="w-1/3 max-w-md border-l border-gray-200 bg-white overflow-y-auto animate-slideIn">
+              <div className="p-6"> 
+                <NodePropertiesPanel
+                  node={selectedNode}
+                  registry={pluginRegistry}
+                  onUpdate={handleUpdateNodePropertyEvent}
+                  onClose={() => setSelectedNodeId(null)}
+                />
               </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow p-4 text-center">
-                <p className="text-gray-500">No active execution. Click "Execute" to run this workflow.</p>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Properties panel - keep existing code */}
-        {selectedNode && (
-          <div className="w-1/3 max-w-md border-l border-gray-200 bg-white overflow-y-auto animate-slideIn">
-            <div className="p-6"> 
-              <NodePropertiesPanel
-                node={selectedNode}
-                registry={pluginRegistry}
-                onUpdate={handleUpdateNodeProperty}
-                onClose={() => setSelectedNodeId(null)}
-              />
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        
+        {/* Execute workflow dialog */}
+        <ExecuteWorkflowDialog
+          isOpen={showExecuteDialog}
+          onClose={() => setShowExecuteDialog(false)}
+          onExecute={handleExecuteWorkflowEvent}
+          workflowInputSchema={getWorkflowInputSchemaFn()}
+        />
       </div>
-      
-      {/* Execute workflow dialog */}
-      <ExecuteWorkflowDialog
-        isOpen={showExecuteDialog}
-        onClose={() => setShowExecuteDialog(false)}
-        onExecute={executeWorkflow}
-        workflowInputSchema={getWorkflowInputSchemaFn()}
-      />
-    </div>
+    </ErrorBoundary>
   );
 };
 

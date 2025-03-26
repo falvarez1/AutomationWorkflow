@@ -315,4 +315,16 @@ const WorkflowStep = ({
   );
 };
 
-export default WorkflowStep;
+// Optimize with custom comparison function
+export default React.memo(WorkflowStep, (prevProps, nextProps) => {
+  // Only re-render on specific prop changes
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.subtitle === nextProps.subtitle &&
+    prevProps.position.x === nextProps.position.x &&
+    prevProps.position.y === nextProps.position.y &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isNew === nextProps.isNew
+    // Add other prop comparisons as needed
+  );
+});
