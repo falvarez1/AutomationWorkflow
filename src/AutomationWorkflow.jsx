@@ -39,16 +39,11 @@ import {
   DEFAULT_NODE_HEIGHT,
   DEFAULT_NODE_WIDTH,
   GRID_SIZE,
-  ZOOM_MIN,
-  ZOOM_MAX,
-  BUTTON_SIZE,
   EDGE_INPUT_Y_OFFSET,
   EDGE_OUTPUT_Y_OFFSET,
   BUTTON_Y_OFFSET,
-  NODE_TYPES,
   CONNECTION_TYPES,
   INITIAL_WORKFLOW_STEPS,
-  BRANCH_EDGE_COLORS,
   SHOW_GRID,
   GRID_COLOR,
   GRID_DOT_SIZE,
@@ -56,9 +51,7 @@ import {
   STANDARD_VERTICAL_SPACING,
   BRANCH_VERTICAL_SPACING,
   BRANCH_LEFT_OFFSET,
-  BRANCH_RIGHT_OFFSET,
-  MENU_PLACEMENT,
-  MOUSE_CONTROLS
+  BRANCH_RIGHT_OFFSET
 } from './components/AutomationWorkflow/constants';
 
 // Import custom hooks
@@ -570,7 +563,7 @@ const AutomationWorkflow = ({
           {/* Save button */}
           <button
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none"
-            onClick={saveWorkflowToBackend}
+            onClick={handleSaveWorkflowEvent}
             disabled={readonly || connectionStatus !== 'connected'}
           >
             Save
