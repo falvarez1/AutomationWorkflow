@@ -13,22 +13,41 @@ import { GRID_SIZE, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../constants
 
 /**
  * Handles node height changes
- * 
+ *
  * @param {string} id - Node ID
  * @param {number} height - New height value
+ * @param {Object} workflowGraph - Current graph state
  * @param {Object} setWorkflowGraph - State setter function
- * @param {Object} commandManager - Command manager instance
+ * @param {Object} commandManager - Command manager instance - not used, height changes bypass undo stack
  */
 export const handleNodeHeightChange = (id, height, workflowGraph, setWorkflowGraph, commandManager) => {
-  // Create a command to update the node height
-  const updateHeightCommand = new UpdateNodeHeightCommand(
-    workflowGraph,
-    id,
-    height
-  );
+  // Direct update without creating a command
+  // This prevents height changes from being added to the undo/redo stack
   
-  // Execute command with commandUtils
-  executeGraphCommand(updateHeightCommand, commandManager, setWorkflowGraph);
+  // Update the node height directly in the graph state
+  setWorkflowGraph(prevGraph => {
+    const newGraph = new Graph();
+    
+    // Copy all nodes with updated height for the target node
+    prevGraph.getAllNodes().forEach(node => {
+      if (node.id === id) {
+        const updatedNode = {
+          ...node,
+          height: height
+        };
+        newGraph.addNode(updatedNode);
+      } else {
+        newGraph.addNode({ ...node });
+      }
+    });
+    
+    // Copy all edges
+    prevGraph.getAllEdges().forEach(edge => {
+      newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+    });
+    
+    return newGraph;
+  });
 };
 
 /**
