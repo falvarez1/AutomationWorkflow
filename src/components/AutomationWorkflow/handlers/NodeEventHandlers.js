@@ -10,6 +10,12 @@ import { executeGraphCommand } from '../utils/commandUtils';
 import { ensureElementVisibility } from '../utils/positionUtils';
 import { animationManager } from '../utils/AnimationManager';
 import { GRID_SIZE, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../constants';
+// Use this object to store the most recent heights for each node
+// This helps us avoid unnecessary updates and infinite loops
+const nodeHeightCache = {};
+
+// Flag to track if any node heights have been updated
+let nodeHeightsInitialized = false;
 
 /**
  * Handles node height changes
@@ -21,10 +27,29 @@ import { GRID_SIZE, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../constants
  * @param {Object} commandManager - Command manager instance - not used, height changes bypass undo stack
  */
 export const handleNodeHeightChange = (id, height, workflowGraph, setWorkflowGraph, commandManager) => {
+  // Skip invalid heights or no significant change
+  if (!height || height < 10) return;
+  return;
+  // Check if the height is actually different from what we already have
+  const existingNode = workflowGraph.getNode(id);
+  if (existingNode && existingNode.height === height) return;
+  
+  // Check if this is a significant change from the last update for this node
+  const lastHeight = nodeHeightCache[id];
+  const isSignificantChange = !lastHeight || Math.abs(lastHeight - height) > 2;
+  
+  if (!isSignificantChange) return;
+  
+  // Update our cache
+  nodeHeightCache[id] = height;
+  
+  // If this is the first time any node height has been updated, set the flag
+  if (!nodeHeightsInitialized) {
+    nodeHeightsInitialized = true;
+  }
+  
   // Direct update without creating a command
   // This prevents height changes from being added to the undo/redo stack
-  
-  // Update the node height directly in the graph state
   setWorkflowGraph(prevGraph => {
     const newGraph = new Graph();
     
@@ -49,6 +74,9 @@ export const handleNodeHeightChange = (id, height, workflowGraph, setWorkflowGra
     return newGraph;
   });
 };
+
+// Export the initialized flag so other components can check it
+export const areNodeHeightsInitialized = () => nodeHeightsInitialized;
 
 /**
  * Handles node click for editing or action execution

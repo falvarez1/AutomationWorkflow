@@ -32,7 +32,7 @@ export const LAYOUT = {
   // Edge connection positioning
   EDGE: {
     INPUT_Y_OFFSET: 0,  // Offset for input edge connections (top of node)
-    OUTPUT_Y_OFFSET: 40, // Offset for output edge connections (bottom of node)
+    OUTPUT_Y_OFFSET: 0, // Offset for output edge connections (bottom of node)
   },
   
   // Timing constants
@@ -42,7 +42,7 @@ export const LAYOUT = {
 
   // Node placement configuration
   NODE_PLACEMENT: {
-    // Standard connection spacing
+    // Standard connection spacing when adding new nodes
     STANDARD_VERTICAL_SPACING: 175,
     
     // Branch connection spacing

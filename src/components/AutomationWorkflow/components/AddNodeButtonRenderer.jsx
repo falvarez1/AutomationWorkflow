@@ -202,7 +202,7 @@ const AddNodeButtonRenderer = ({
           const branchEndpoint = BranchUtils.getBranchEndpoint(node, branch.id, pluginRegistry, {
             DEFAULT_NODE_WIDTH,
             DEFAULT_NODE_HEIGHT,
-            BRANCH_VERTICAL_SPACING: 40
+            BRANCH_VERTICAL_SPACING: 0
           });
           
           if (!branchEndpoint) return;

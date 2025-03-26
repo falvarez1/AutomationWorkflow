@@ -318,6 +318,20 @@ const WorkflowStep = ({
 
 // Optimize with custom comparison function
 export default React.memo(WorkflowStep, (prevProps, nextProps) => {
+  // First, check if sourceNodeRefs changed - this is critical for edge connections
+  if (prevProps.sourceNodeRefs?.length !== nextProps.sourceNodeRefs?.length) {
+    return false; // Different length means they're different, force update
+  }
+  
+  // Compare each sourceNodeRef individually
+  if (prevProps.sourceNodeRefs && nextProps.sourceNodeRefs) {
+    const prevSourceIds = prevProps.sourceNodeRefs.map(ref => ref.sourceId).sort().join(',');
+    const nextSourceIds = nextProps.sourceNodeRefs.map(ref => ref.sourceId).sort().join(',');
+    if (prevSourceIds !== nextSourceIds) {
+      return false; // Source IDs changed, force update
+    }
+  }
+  
   // Only re-render on specific prop changes
   return (
     prevProps.title === nextProps.title &&

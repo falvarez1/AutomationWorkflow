@@ -17,7 +17,7 @@ export const BranchUtils = {
     const { 
       DEFAULT_NODE_WIDTH = LAYOUT.NODE.DEFAULT_WIDTH, 
       DEFAULT_NODE_HEIGHT = LAYOUT.NODE.DEFAULT_HEIGHT,
-      BRANCH_VERTICAL_SPACING = 40
+      BRANCH_VERTICAL_SPACING = 0
     } = defaults;
 
     const startX = node.position.x + (DEFAULT_NODE_WIDTH / 2);
