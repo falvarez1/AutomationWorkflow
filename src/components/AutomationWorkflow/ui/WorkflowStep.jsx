@@ -229,7 +229,6 @@ const WorkflowStep = ({
             setNodeHeight(newHeight);
 
             if (onHeightChange) {
-                console.log('Node height changed:', newHeight, id);
                 onHeightChange(id, newHeight);
             }
         }

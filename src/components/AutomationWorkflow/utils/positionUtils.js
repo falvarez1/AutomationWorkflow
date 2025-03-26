@@ -137,7 +137,7 @@ export const getMenuPosition = (
   // Branch specific position
   if (activeBranch && (menuType === 'branch' || menuType === 'branchEdge')) {
     // Fixed position (outside transform)
-    console.log('anchorPosition', anchorPosition);
+    //console.log('anchorPosition', anchorPosition);
     if (anchorPosition) {
       return {
         x: anchorPosition.x + MENU_PLACEMENT.MENU_HORIZONTAL_OFFSET,

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer } from 'react';
+import React, { createContext, useContext, useReducer, useCallback } from 'react';
 
 // Initial state
 const initialState = {
@@ -33,26 +33,40 @@ function workflowReducer(state, action) {
 // Create context
 const WorkflowContext = createContext();
 
-// Provider component
-export const WorkflowProvider = ({ children, initialWorkflowSteps = [] }) => {
+// Enhanced provider component with actions
+export const WorkflowProvider = ({ children, initialWorkflowSteps = [], commandManager }) => {
   const [state, dispatch] = useReducer(workflowReducer, {
     ...initialState,
-    workflowSteps: initialWorkflowSteps
+    workflowSteps: initialWorkflowSteps,
+    workflowGraph: null, // Will be initialized separately
   });
   
-  // Actions
-  const selectNode = (nodeId) => {
+  // Node selection action
+  const selectNode = useCallback((nodeId) => {
     dispatch({ type: ActionTypes.SELECT_NODE, payload: nodeId });
+  }, []);
+  
+  // Node update action
+  const updateNode = useCallback((nodeId, propertyId, value) => {
+    dispatch({ 
+      type: ActionTypes.UPDATE_NODE, 
+      payload: { nodeId, propertyId, value } 
+    });
+    // Could also integrate with commandManager here
+  }, []);
+  
+  // Add more actions here...
+  
+  const contextValue = {
+    ...state,
+    // Actions
+    selectNode,
+    updateNode,
+    // More actions...
   };
   
-  // ...other action creators
-  
   return (
-    <WorkflowContext.Provider value={{
-      ...state,
-      selectNode,
-      // ...other actions
-    }}>
+    <WorkflowContext.Provider value={contextValue}>
       {children}
     </WorkflowContext.Provider>
   );

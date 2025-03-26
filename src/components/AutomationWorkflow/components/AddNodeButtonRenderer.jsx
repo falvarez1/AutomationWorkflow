@@ -183,8 +183,8 @@ const AddNodeButtonRenderer = ({
           ];
         } else if (node.type === NODE_TYPES.SPLITFLOW) {
           // Get branches from BranchUtils
-          branches = BranchUtils.getNodeBranches(node, pluginRegistry);
-          
+           branches = BranchUtils.getNodeBranches(node, pluginRegistry);
+
           // If no branches were returned, use default 3 paths
           if (!branches || branches.length === 0) {
             branches = [
@@ -192,13 +192,13 @@ const AddNodeButtonRenderer = ({
               { id: '2', label: 'Path 2' }, 
               { id: '3', label: 'Path 3' }
             ];
-          }
+          }        
         }
         
         // Render a button for each branch endpoint
         branches.forEach(branch => {
           // Use BranchUtils with fallback to handle positioning consistently
-          const branchEndpoint = BranchUtils.getBranchEndpoint(node, branch.id, {
+          const branchEndpoint = BranchUtils.getBranchEndpoint(node, branch.id, pluginRegistry, {
             DEFAULT_NODE_WIDTH,
             DEFAULT_NODE_HEIGHT,
             BRANCH_VERTICAL_SPACING: 40

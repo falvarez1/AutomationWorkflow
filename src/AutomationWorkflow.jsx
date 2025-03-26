@@ -352,7 +352,7 @@ const AutomationWorkflow = ({
       workflowGraph,
       setWorkflowGraph,
       commandManager,
-      (node, branchId) => BranchUtils.getBranchEndpoint(node, branchId, {
+      (node, branchId) => BranchUtils.getBranchEndpoint(node, branchId, pluginRegistry, {
         DEFAULT_NODE_WIDTH: LAYOUT.NODE.DEFAULT_WIDTH,
         DEFAULT_NODE_HEIGHT: LAYOUT.NODE.DEFAULT_HEIGHT,
         BRANCH_VERTICAL_SPACING: 40
