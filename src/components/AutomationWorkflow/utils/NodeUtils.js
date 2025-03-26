@@ -50,7 +50,7 @@ export const getDefaultSubtitle = (nodeType) => {
 
 /**
  * Create a new node with the specified properties
- * 
+ *
  * @param {string} nodeType - Type of node to create
  * @param {Object} position - Position {x, y} for the new node
  * @param {Object} pluginRegistry - Plugin registry for looking up node type metadata
@@ -62,7 +62,8 @@ export const createNewNode = (nodeType, position, pluginRegistry, overrides = {}
   const nodePlugin = pluginRegistry.getNodeType(nodeType);
   const initialProps = nodePlugin.getInitialProperties ? nodePlugin.getInitialProperties() : {};
   
-  return {
+  // Create base node
+  const newNode = {
     id: generateUniqueId(),
     type: nodeType,
     position,
@@ -71,7 +72,24 @@ export const createNewNode = (nodeType, position, pluginRegistry, overrides = {}
     contextMenuConfig: { position: 'right', offsetX: -5, offsetY: 0, orientation: 'vertical' },
     title: getDefaultTitle(nodeType),
     subtitle: getDefaultSubtitle(nodeType),
+    sourceNodeRefs: [], // Initialize empty sourceNodeRefs array
     ...initialProps,
     ...overrides
   };
+  
+  // For splitflow nodes, ensure properties are properly initialized
+  if (nodeType === NODE_TYPES.SPLITFLOW) {
+    // Make sure properties needed for branches exist
+    newNode.properties = {
+      pathCount: '2',
+      path1Name: 'Path 1',
+      path2Name: 'Path 2',
+      path3Name: 'Path 3',
+      splitAttribute: 'first_name',
+      ...initialProps,
+      ...(overrides.properties || {})
+    };
+  }
+  
+  return newNode;
 };

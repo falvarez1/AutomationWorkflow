@@ -1,4 +1,4 @@
-import { NODE_TYPES } from '../constants';
+import { NODE_TYPES, LAYOUT } from '../constants';
 
 /**
  * Utility functions for calculating branch-related positions and endpoints
@@ -9,13 +9,14 @@ export const BranchUtils = {
    * 
    * @param {Object} node - The node containing the branches
    * @param {string} branchId - The ID of the branch to calculate
+   * @param {Object} pluginRegistry - The plugin registry to look up node type metadata
    * @param {Object} defaults - Default dimensions and spacing values
    * @returns {Object|null} The calculated endpoint position {x, y} or null if invalid
    */
-  getBranchEndpoint: (node, branchId, defaults) => {
+  getBranchEndpoint: (node, branchId, pluginRegistry, defaults= {}) => {
     const { 
-      DEFAULT_NODE_WIDTH = 200, 
-      DEFAULT_NODE_HEIGHT = 100,
+      DEFAULT_NODE_WIDTH = LAYOUT.NODE.DEFAULT_WIDTH, 
+      DEFAULT_NODE_HEIGHT = LAYOUT.NODE.DEFAULT_HEIGHT,
       BRANCH_VERTICAL_SPACING = 40
     } = defaults;
 
@@ -34,9 +35,11 @@ export const BranchUtils = {
       }
     } else if (node.type === NODE_TYPES.SPLITFLOW) {
       // Get all branches for this split flow node from the node's properties
-      const branches = node.properties?.branches || [];
+      //const branches = node.properties?.branches || [];
+      //const branches = pluginRegistry.getNodeType('splitflow').getBranches(node.properties);
+      const branches = BranchUtils.getNodeBranches(node, pluginRegistry);
       const index = branches.findIndex(b => b.id === branchId);
-      
+      //console.log('BranchUtils node properties', node.properties);
       if (index === -1) {
         return null; // Invalid branch ID
       }
@@ -73,6 +76,18 @@ export const BranchUtils = {
     const nodePlugin = pluginRegistry.getNodeType(node.type);
     if (!nodePlugin || !nodePlugin.getBranches) return [];
     
-    return nodePlugin.getBranches(node.properties);
+  //  console.log("Getting branches for node", node.id, "type", node.type, "properties", node.properties);
+    let branches = nodePlugin.getBranches(node.properties) || [];
+  //  console.log("Generated branches:", branches);
+    
+    // Fallback for SPLITFLOW nodes
+    if (node.type === NODE_TYPES.SPLITFLOW && branches.length === 0) {
+      branches = [
+        { id: 'path1', label: 'Path 1' },
+        { id: 'path2', label: 'Path 2' }
+      ];
+    }
+    
+    return branches;
   }
 };

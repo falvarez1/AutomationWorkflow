@@ -1,55 +1,6 @@
 import { LAYOUT, MENU_PLACEMENT } from '../constants';
 import { animateCanvasPan } from './AnimationManager';
-
-/**
- * Calculates the endpoint position for a branch connection
- * 
- * @param {Object} node - The source node
- * @param {string} branchId - The branch identifier
- * @param {Object} pluginRegistry - Registry to look up node type information
- * @returns {Object|null} The calculated endpoint position {x, y} or null if invalid
- */
-export const getBranchEndpoint = (node, branchId, pluginRegistry) => {
-  const startX = node.position.x + (LAYOUT.NODE.DEFAULT_WIDTH / 2);
-  const startY = node.position.y + (node.height || LAYOUT.NODE.DEFAULT_HEIGHT);
-
-  if (node.type === 'ifelse') {
-    // For IFELSE nodes, we only have two valid branch IDs: 'yes' and 'no'
-    if (branchId === 'yes') {
-      return { x: node.position.x - 65 + (LAYOUT.NODE.DEFAULT_WIDTH / 2), y: startY + 40 };
-    } else if (branchId === 'no') {
-      return { x: node.position.x + 65 + (LAYOUT.NODE.DEFAULT_WIDTH / 2), y: startY + 40 };
-    } else {
-      // Return null for invalid branch IDs to prevent unwanted buttons
-      return null;
-    }
-  } else if (node.type === 'splitflow') {
-    // Get all branches for this split flow node
-    const branches = pluginRegistry.getNodeType('splitflow').getBranches(node.properties);
-    const index = branches.findIndex(b => b.id === branchId);
-
-    if (index === -1) {
-      return null; // Invalid branch ID
-    }
-
-    // Get the total number of branches to determine spacing
-    const totalBranches = branches.length;
-
-    // Calculate spacing between branches
-    // For 2 branches: positions at -65 and +65 (similar to IfElse)
-    // For 3 branches: positions at -120, 0, and +120
-    const spacing = totalBranches === 2 ? 130 : 120;
-
-    // Calculate position based on index and total branches
-    const startPosition = -(spacing * (totalBranches - 1)) / 2;
-    const xOffset = startPosition + (index * spacing);
-
-    return { x: startX + xOffset, y: startY + 40 };
-  }
-
-  // Default return for other node types
-  return { x: startX, y: startY };
-};
+import { BranchUtils } from './BranchUtils';
 
 /**
  * Calculates the standard connection points between two nodes
@@ -99,7 +50,7 @@ export const calculateBranchConnectionPoints = (
 ) => {
   if (!sourceNode || !targetNode || !branchId) return { startPos: null, endPos: null };
 
-  const branchEndpoint = getBranchEndpoint(sourceNode, branchId, pluginRegistry);
+  const branchEndpoint = BranchUtils.getBranchEndpoint(sourceNode, branchId, pluginRegistry);
 
   const targetX = targetNode.position.x + (LAYOUT.NODE.DEFAULT_WIDTH / 2);
   const targetY = targetNode.position.y + edgeInputYOffset;

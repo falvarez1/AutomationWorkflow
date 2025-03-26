@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import AddNodeButton from '../ui/AddNodeButton';
-import { calculateConnectionPoints, getBranchEndpoint, calculateBranchConnectionPoints } from '../utils/positionUtils';
+import { calculateConnectionPoints, calculateBranchConnectionPoints } from '../utils/positionUtils';
 import { LAYOUT, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, NODE_TYPES } from '../constants';
 import { BranchUtils } from '../utils/BranchUtils';
 
@@ -188,16 +188,17 @@ const AddNodeButtonRenderer = ({
           // If no branches were returned, use default 3 paths
           if (!branches || branches.length === 0) {
             branches = [
-              { id: '1', label: 'Path 1' },
-              { id: '2', label: 'Path 2' }, 
-              { id: '3', label: 'Path 3' }
+              { id: 'path1', label: 'Path 1' },
+              { id: 'path2', label: 'Path 2' },
+              { id: 'path3', label: 'Path 3' }
             ];
-          }        
+          }
         }
         
         // Render a button for each branch endpoint
         branches.forEach(branch => {
           // Use BranchUtils with fallback to handle positioning consistently
+        //  console.log("Getting branch endpoint for", node.id, "branch", branch.id, "node properties", node.properties);
           const branchEndpoint = BranchUtils.getBranchEndpoint(node, branch.id, pluginRegistry, {
             DEFAULT_NODE_WIDTH,
             DEFAULT_NODE_HEIGHT,

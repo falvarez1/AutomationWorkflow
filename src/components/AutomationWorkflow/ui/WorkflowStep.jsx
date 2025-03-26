@@ -4,22 +4,23 @@ import { NODE_TYPES, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../constant
 import NodeContextMenu from './NodeContextMenu';
 
 // Draggable Workflow Step Component
-const WorkflowStep = ({ 
-  id, 
-  type, 
-  title, 
-  subtitle, 
-  position, 
-  transform, 
-  onClick, 
-  onDragStart, 
-  onDrag, 
-  onDragEnd, 
-  onHeightChange, 
-  isNew, 
-  isAnimating, 
-  isSelected, 
-  contextMenuConfig: propContextMenuConfig 
+const WorkflowStep = ({
+  id,
+  type,
+  title,
+  subtitle,
+  position,
+  transform,
+  onClick,
+  onDragStart,
+  onDrag,
+  onDragEnd,
+  onHeightChange,
+  isNew,
+  isAnimating,
+  isSelected,
+  sourceNodeRefs = [],
+  contextMenuConfig: propContextMenuConfig
 }) => {
   const nodeRef = useRef(null);
   const headerHeightRef = useRef(null); // Ref to cache the calculated header height
@@ -270,6 +271,7 @@ const WorkflowStep = ({
       data-node-id={id}
       data-node-element="true"
       data-was-just-clicked={wasJustClicked ? "true" : "false"}
+      data-source-nodes={sourceNodeRefs.map(ref => `${ref.sourceId}:${ref.type}:${ref.label || 'null'}`).join(',')}
       className={`p-4 bg-white border border-l-4 ${isSelected ? config.selectedColor : config.borderColor} ${!isDragging && config.hoverColor} rounded-lg ${isDragging ? 'shadow-xl' : 'shadow-sm hover:shadow-md'} ${config.bgHover}`}
       onMouseDown={handleMouseDown}
       onMouseEnter={() => setIsHovering(true)}

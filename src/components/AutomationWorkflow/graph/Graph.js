@@ -58,7 +58,16 @@ class Graph {
       }
     });
     
-    edgesToRemove.forEach(edgeId => this.edges.delete(edgeId));
+    // Remove edges and update sourceNodeRefs on target nodes
+    edgesToRemove.forEach(edgeId => {
+      const edge = this.edges.get(edgeId);
+      if (edge && edge.targetId !== id) {
+        // We're removing a source node, so clean up the references in the target
+        this._removeSourceNodeRefFromTarget(edge.sourceId, edge.targetId, edge.type, edge.label);
+      }
+      this.edges.delete(edgeId);
+    });
+    
     return this.nodes.delete(id);
   }
 
@@ -108,7 +117,36 @@ class Graph {
    * @returns {boolean} True if edge was removed
    */
   removeEdge(id) {
-    return this.edges.delete(id);
+    const edge = this.edges.get(id);
+    if (edge) {
+      // Clean up sourceNodeRefs in the target node
+      this._removeSourceNodeRefFromTarget(edge.sourceId, edge.targetId, edge.type, edge.label);
+      return this.edges.delete(id);
+    }
+    return false;
+  }
+  
+  /**
+   * Helper method to remove a source node reference from a target node
+   * @param {string} sourceId - Source node ID
+   * @param {string} targetId - Target node ID
+   * @param {string} type - Edge type ('default' or 'branch')
+   * @param {string|null} label - Optional edge label (for branches)
+   * @private
+   */
+  _removeSourceNodeRefFromTarget(sourceId, targetId, type, label) {
+    const targetNode = this.getNode(targetId);
+    if (targetNode && targetNode.sourceNodeRefs) {
+      // Filter out the specific source reference
+      const updatedRefs = targetNode.sourceNodeRefs.filter(ref =>
+        !(ref.sourceId === sourceId && ref.type === type && ref.label === label)
+      );
+      
+      this.updateNode(targetId, {
+        ...targetNode,
+        sourceNodeRefs: updatedRefs
+      });
+    }
   }
 
   /**
@@ -120,6 +158,32 @@ class Graph {
   updateEdge(id, updates) {
     const edge = this.getEdge(id);
     if (!edge) return false;
+    
+    // If target is changing, update sourceNodeRefs in both old and new targets
+    if (updates.targetId && updates.targetId !== edge.targetId) {
+      // Remove reference from old target
+      this._removeSourceNodeRefFromTarget(edge.sourceId, edge.targetId, edge.type, edge.label);
+      
+      // Create new reference in new target
+      const targetNode = this.getNode(updates.targetId);
+      if (targetNode) {
+        // Initialize sourceNodeRefs if it doesn't exist
+        const sourceNodeRefs = targetNode.sourceNodeRefs || [];
+        
+        // Add reference to source node
+        const sourceRef = {
+          sourceId: edge.sourceId,
+          type: updates.type || edge.type,
+          label: updates.label !== undefined ? updates.label : edge.label
+        };
+        
+        this.updateNode(updates.targetId, {
+          ...targetNode,
+          sourceNodeRefs: [...sourceNodeRefs, sourceRef]
+        });
+      }
+    }
+    
     this.edges.set(id, { ...edge, ...updates });
     return true;
   }
@@ -162,6 +226,33 @@ class Graph {
     const edgeId = `${sourceId}_to_${targetId}_${type}${label ? `_${label}` : ''}`;
     const edge = new Edge(edgeId, sourceId, targetId, type, label);
     this.addEdge(edge);
+    
+    // Add reference to source node in the target node
+    const targetNode = this.getNode(targetId);
+    if (targetNode) {
+      // Initialize sourceNodeRefs if it doesn't exist
+      const sourceNodeRefs = targetNode.sourceNodeRefs || [];
+      
+      // Add reference only if it doesn't already exist
+      const sourceRef = {
+        sourceId,
+        type,
+        label
+      };
+      
+      // Check if this exact reference already exists
+      const refExists = sourceNodeRefs.some(ref =>
+        ref.sourceId === sourceId && ref.type === type && ref.label === label
+      );
+      
+      if (!refExists) {
+        this.updateNode(targetId, {
+          ...targetNode,
+          sourceNodeRefs: [...sourceNodeRefs, sourceRef]
+        });
+      }
+    }
+    
     return edge;
   }
 
@@ -233,7 +324,8 @@ class Graph {
         height: step.height || DEFAULT_NODE_HEIGHT,
         contextMenuConfig: step.contextMenuConfig,
         isNew: step.isNew,
-        properties: step.properties || {}
+        properties: step.properties || {},
+        sourceNodeRefs: step.sourceNodeRefs || []
       };
       graph.addNode(node);
     });
@@ -287,6 +379,7 @@ class Graph {
         type: node.type,
         position: node.position,
         properties: node.properties || {},
+        sourceNodeRefs: node.sourceNodeRefs || [],
         connections: outgoingConnections
       };
     });

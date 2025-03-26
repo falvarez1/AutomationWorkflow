@@ -94,26 +94,33 @@ const WorkflowEditorView = ({
         </svg>
 
         {/* Workflow step nodes */}
-        {workflowSteps.map(step => (
-          <WorkflowStep
-            key={step.id}
-            id={step.id}
-            type={step.type}
-            title={step.title}
-            subtitle={step.subtitle}
-            position={step.position}
-            transform={transform}
-            onClick={handleStepClick}
-            onDragStart={handleNodeDragStart}
-            onDrag={handleNodeDrag}
-            onDragEnd={handleNodeDragEnd}
-            onHeightChange={handleNodeHeightChange}
-            isNew={step.isNew || animatingNodes.includes(step.id)}
-            isSelected={selectedNodeId === step.id}
-            contextMenuConfig={step.contextMenuConfig}
-            className="draggable-node"
-          />
-        ))}
+        {workflowSteps.map(step => {
+          // Get the complete node data from the graph to access sourceNodeRefs
+          const node = workflowGraph.getNode(step.id);
+          const sourceNodeRefs = node ? (node.sourceNodeRefs || []) : [];
+          
+          return (
+            <WorkflowStep
+              key={step.id}
+              id={step.id}
+              type={step.type}
+              title={step.title}
+              subtitle={step.subtitle}
+              position={step.position}
+              transform={transform}
+              onClick={handleStepClick}
+              onDragStart={handleNodeDragStart}
+              onDrag={handleNodeDrag}
+              onDragEnd={handleNodeDragEnd}
+              onHeightChange={handleNodeHeightChange}
+              isNew={step.isNew || animatingNodes.includes(step.id)}
+              isSelected={selectedNodeId === step.id}
+              sourceNodeRefs={sourceNodeRefs}
+              contextMenuConfig={step.contextMenuConfig}
+              className="draggable-node"
+            />
+          );
+        })}
 
         {/* Add Node Button Renderer - This was missing */}
         {AddNodeButtonRenderer && (

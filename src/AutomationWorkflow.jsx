@@ -1,12 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  ZoomIn,
-  ZoomOut,
-  Maximize,
-  RotateCcw,
-  RotateCw,
-  Grid
-} from 'lucide-react';
 
 // Import Graph and command pattern components
 import { Graph } from './components/AutomationWorkflow/graph/Graph';
