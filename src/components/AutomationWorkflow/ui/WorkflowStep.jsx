@@ -225,19 +225,37 @@ const WorkflowStep = ({
     if (!nodeRef.current) return;
 
     const observer = new ResizeObserver(entries => {
-        const newHeight = entries[0].contentRect.height;
-        if (newHeight !== nodeHeight) {  // ensure we only update when different
-            setNodeHeight(newHeight);
-
-            if (onHeightChange) {
-                onHeightChange(id, newHeight);
+        // Add a small delay to ensure content is fully rendered
+        setTimeout(() => {
+            if (!nodeRef.current) return;
+            
+            // Use getBoundingClientRect instead of contentRect for more accurate measurement
+            const rect = nodeRef.current.getBoundingClientRect();
+            const newHeight = rect.height;
+            
+            // Convert from screen pixels to canvas coordinates (account for transform scale)
+            const canvasHeight = newHeight / transform.scale;
+            
+            // Apply node type-specific adjustments if needed
+            let adjustedHeight = canvasHeight;
+            if (type === NODE_TYPES.SPLITFLOW) {
+                // Add a small buffer for SPLITFLOW nodes if needed
+                adjustedHeight += 5;  
             }
-        }
+            
+            if (adjustedHeight !== nodeHeight) {  // Only update when different
+                setNodeHeight(adjustedHeight);
+                
+                if (onHeightChange) {
+                    onHeightChange(id, adjustedHeight);
+                }
+            }
+        }, 50); // Small delay to ensure content is settled
     });
 
     observer.observe(nodeRef.current);
     return () => observer.disconnect();
-}, [id, onHeightChange, nodeHeight]);
+}, [id, onHeightChange, nodeHeight, transform.scale, type]);
 
   // Determine the appropriate styles based on state
   const style = {

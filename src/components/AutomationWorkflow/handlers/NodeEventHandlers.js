@@ -29,7 +29,7 @@ let nodeHeightsInitialized = false;
 export const handleNodeHeightChange = (id, height, workflowGraph, setWorkflowGraph, commandManager) => {
   // Skip invalid heights or no significant change
   if (!height || height < 10) return;
-  return;
+  //return;
   // Check if the height is actually different from what we already have
   const existingNode = workflowGraph.getNode(id);
   if (existingNode && existingNode.height === height) return;
