@@ -37,7 +37,8 @@ export class DuplicateNodeCommand extends Command {
         y: sourceNode.position.y + this.offsetY
       },
       title: `${sourceNode.title} (Copy)`,
-      isNew: true // Mark as new for animation
+      isNew: true, // Mark as new for animation
+      sourceNodeRefs: [] // Reset source node references - the clone has no incoming connections
     };
 
     // Add the duplicated node to the graph
