@@ -362,6 +362,18 @@ const AutomationWorkflow = ({
     );
   }, [workflowGraph, branchLeftOffset, branchRightOffset, branchVerticalSpacing, standardVerticalSpacing, setWorkflowGraph, handleCloseMenuEvent]);
 
+
+  // Create handler for undo and redo actions
+  const handleUndoEvent = () => {
+    //undoAction(workflowGraph, setWorkflowGraph, commandManager);
+    handleUndo(commandManager);
+  };
+
+  const handleRedoEvent = () => {
+    //redoAction(workflowGraph, setWorkflowGraph, commandManager);
+    handleRedo(commandManager);
+  };
+
   const handleShowExecuteDialogEvent = () => {
     setShowExecuteDialog(true);
   };
@@ -707,7 +719,7 @@ const AutomationWorkflow = ({
               className={`p-2 rounded-full shadow focus:outline-none ${
                 canUndo ? 'bg-white hover:bg-gray-50 text-gray-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
-              onClick={handleUndo}
+              onClick={handleUndoEvent}
               disabled={!canUndo}
               title="Undo"
             >
@@ -717,7 +729,7 @@ const AutomationWorkflow = ({
               className={`p-2 rounded-full shadow focus:outline-none ${
                 canRedo ? 'bg-white hover:bg-gray-50 text-gray-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
-              onClick={handleRedo}
+              onClick={handleRedoEvent}
               disabled={!canRedo}
               title="Redo"
             >
