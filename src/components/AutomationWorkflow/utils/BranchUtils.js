@@ -14,10 +14,10 @@ export const BranchUtils = {
    * @returns {Object|null} The calculated endpoint position {x, y} or null if invalid
    */
   getBranchEndpoint: (node, branchId, pluginRegistry, defaults= {}) => {
-    const { 
-      DEFAULT_NODE_WIDTH = LAYOUT.NODE.DEFAULT_WIDTH, 
+    const {
+      DEFAULT_NODE_WIDTH = LAYOUT.NODE.DEFAULT_WIDTH,
       DEFAULT_NODE_HEIGHT = LAYOUT.NODE.DEFAULT_HEIGHT,
-      BRANCH_VERTICAL_SPACING = 0
+      BRANCH_EDGE_OFFSET = LAYOUT.EDGE.BRANCH_EDGE_OFFSET
     } = defaults;
 
     const startX = node.position.x + (DEFAULT_NODE_WIDTH / 2);
@@ -26,9 +26,9 @@ export const BranchUtils = {
     if (node.type === NODE_TYPES.IFELSE) {
       // For IFELSE nodes, we only have two valid branch IDs: 'yes' and 'no'
       if (branchId === 'yes') {
-        return { x: startX - 65, y: startY + BRANCH_VERTICAL_SPACING };
+        return { x: startX - 65, y: startY + BRANCH_EDGE_OFFSET };
       } else if (branchId === 'no') {
-        return { x: startX + 65, y: startY + BRANCH_VERTICAL_SPACING };
+        return { x: startX + 65, y: startY + BRANCH_EDGE_OFFSET };
       } else {
         // Return null for invalid branch IDs to prevent unwanted buttons
         return null;
@@ -56,11 +56,11 @@ export const BranchUtils = {
       const startPosition = -(spacing * (totalBranches - 1)) / 2;
       const xOffset = startPosition + (index * spacing);
       
-      return { x: startX + xOffset, y: startY + BRANCH_VERTICAL_SPACING };
+      return { x: startX + xOffset, y: startY + BRANCH_EDGE_OFFSET };
     }
     
     // Default return for other node types
-    return { x: startX, y: startY + BRANCH_VERTICAL_SPACING };
+    return { x: startX, y: startY + BRANCH_EDGE_OFFSET };
   },
   
   /**

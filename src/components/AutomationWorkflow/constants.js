@@ -33,6 +33,8 @@ export const LAYOUT = {
   EDGE: {
     INPUT_Y_OFFSET: 0,  // Offset for input edge connections (top of node)
     OUTPUT_Y_OFFSET: 0, // Offset for output edge connections (bottom of node)
+    BRANCH_EDGE_OFFSET: 0, // Where branch connection lines visually start from a node
+    BRANCH_PATH_BUTTON_OFFSET: 40, // Offset for branch path buttons (e.g., "Add Path" button)
   },
   
   // Timing constants
@@ -45,8 +47,12 @@ export const LAYOUT = {
     // Standard connection spacing when adding new nodes
     STANDARD_VERTICAL_SPACING: 175,
     
-    // Branch connection spacing
-    BRANCH_VERTICAL_SPACING: 130,
+    // Vertical spacing between nodes in branch paths
+    NODE_BRANCH_VERTICAL_SPACING: 500,
+
+    FORCE_VERTICAL_ADJUSTMENT: 170, // Force vertical adjustment to lower nodes when adding a node
+    
+    // Horizontal offsets for branch nodes
     BRANCH_LEFT_OFFSET: -120,
     BRANCH_RIGHT_OFFSET: 120
   }
@@ -68,7 +74,13 @@ export const BUTTON_Y_OFFSET = LAYOUT.BUTTON.Y_OFFSET;
 export const EDGE_INPUT_Y_OFFSET = LAYOUT.EDGE.INPUT_Y_OFFSET;
 export const EDGE_OUTPUT_Y_OFFSET = LAYOUT.EDGE.OUTPUT_Y_OFFSET;
 export const STANDARD_VERTICAL_SPACING = LAYOUT.NODE_PLACEMENT.STANDARD_VERTICAL_SPACING;
-export const BRANCH_VERTICAL_SPACING = LAYOUT.NODE_PLACEMENT.BRANCH_VERTICAL_SPACING;
+// For backward compatibility - using new BRANCH_EDGE_OFFSET (deprecated)
+export const BRANCH_VERTICAL_SPACING = LAYOUT.EDGE.BRANCH_EDGE_OFFSET;
+// New clearer named exports
+export const BRANCH_EDGE_OFFSET = LAYOUT.EDGE.BRANCH_EDGE_OFFSET;
+export const BRANCH_PATH_BUTTON_OFFSET = LAYOUT.EDGE.BRANCH_PATH_BUTTON_OFFSET;
+export const NODE_BRANCH_VERTICAL_SPACING = LAYOUT.NODE_PLACEMENT.NODE_BRANCH_VERTICAL_SPACING;
+export const FORCE_NODE_VERTICAL_ADJUSTMENT = LAYOUT.NODE_PLACEMENT.FORCE_VERTICAL_ADJUSTMENT;
 export const BRANCH_LEFT_OFFSET = LAYOUT.NODE_PLACEMENT.BRANCH_LEFT_OFFSET;
 export const BRANCH_RIGHT_OFFSET = LAYOUT.NODE_PLACEMENT.BRANCH_RIGHT_OFFSET;
 
@@ -304,7 +316,7 @@ export const INITIAL_WORKFLOW_STEPS = Object.freeze([
     type: NODE_TYPES.SPLITFLOW,
     title: 'Split Flow',
     subtitle: 'Execute multiple paths in parallel',
-    position: { x: getSafeWindowDimensions().width / 2 - 190, y: 675 },
+    position: { x: getSafeWindowDimensions().width / 2 - 190, y: 645 },
     height: LAYOUT.NODE.DEFAULT_HEIGHT,
     contextMenuConfig: DEFAULT_CONTEXT_MENU_CONFIG,
     branchConnections: {

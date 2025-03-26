@@ -1,6 +1,7 @@
 /**
  * Command pattern implementation for graph operations
  */
+import { LAYOUT, NODE_BRANCH_VERTICAL_SPACING, FORCE_NODE_VERTICAL_ADJUSTMENT } from '../constants';
 
 class AddNodeCommand {
   constructor(graph, newNode, sourceNodeId = null, connectionType = 'default', branchId = null) {
@@ -13,7 +14,7 @@ class AddNodeCommand {
     this.createdEdge = null;
     this.oldTargetNodeId = null;
     this.oldEdge = null;
-    this.nodeVerticalSpacing = 150; // Vertical spacing between nodes
+    this.nodeVerticalSpacing = FORCE_NODE_VERTICAL_ADJUSTMENT; //  Adjusts how far to move the nodes down when adding a new node
     this.movedNodes = []; // Track nodes that were moved down
   }
   

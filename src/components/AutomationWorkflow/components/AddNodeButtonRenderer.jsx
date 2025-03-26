@@ -2,7 +2,7 @@ import React from 'react';
 import { Plus } from 'lucide-react';
 import AddNodeButton from '../ui/AddNodeButton';
 import { calculateConnectionPoints, calculateBranchConnectionPoints } from '../utils/positionUtils';
-import { LAYOUT, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, NODE_TYPES } from '../constants';
+import { LAYOUT, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, NODE_TYPES, BRANCH_PATH_BUTTON_OFFSET, BRANCH_EDGE_OFFSET } from '../constants';
 import { BranchUtils } from '../utils/BranchUtils';
 
 /**
@@ -202,7 +202,7 @@ const AddNodeButtonRenderer = ({
           const branchEndpoint = BranchUtils.getBranchEndpoint(node, branch.id, pluginRegistry, {
             DEFAULT_NODE_WIDTH,
             DEFAULT_NODE_HEIGHT,
-            BRANCH_VERTICAL_SPACING: 0
+            BRANCH_EDGE_OFFSET: BRANCH_EDGE_OFFSET  // where the branch Add Path buttons are positioned vertically
           });
           
           if (!branchEndpoint) return;
@@ -215,7 +215,7 @@ const AddNodeButtonRenderer = ({
           if (!hasBranchConnection) {
             const buttonPosition = {
               x: branchEndpoint.x,
-              y: branchEndpoint.y + 20  // Position below the branch endpoint
+              y: branchEndpoint.y + BRANCH_PATH_BUTTON_OFFSET  // Position below the branch endpoint
             };
             
             // Determine button color based on node type
