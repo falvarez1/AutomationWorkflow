@@ -171,7 +171,7 @@ const WorkflowStep = ({
     // Get the current header height and apply proper scaling
     const scaledHeaderOffset = headerHeight / safeScale;
     const offsetY = (e.clientY - rect.top) / safeScale + scaledHeaderOffset;
-
+    
     setDragOffset({ x: offsetX, y: offsetY });
     setIsDragging(true);
 
@@ -325,7 +325,10 @@ export default React.memo(WorkflowStep, (prevProps, nextProps) => {
     prevProps.position.x === nextProps.position.x &&
     prevProps.position.y === nextProps.position.y &&
     prevProps.isSelected === nextProps.isSelected &&
-    prevProps.isNew === nextProps.isNew
-    // Add other prop comparisons as needed
+    prevProps.isNew === nextProps.isNew &&
+    // Essential - Check if transform has changed
+    prevProps.transform.x === nextProps.transform.x &&
+    prevProps.transform.y === nextProps.transform.y &&
+    prevProps.transform.scale === nextProps.transform.scale
   );
 });
