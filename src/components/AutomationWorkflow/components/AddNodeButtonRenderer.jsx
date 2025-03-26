@@ -2,7 +2,8 @@ import React from 'react';
 import { Plus } from 'lucide-react';
 import AddNodeButton from '../ui/AddNodeButton';
 import { calculateConnectionPoints, getBranchEndpoint, calculateBranchConnectionPoints } from '../utils/positionUtils';
-import { LAYOUT, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../constants';
+import { LAYOUT, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, NODE_TYPES } from '../constants';
+import { BranchUtils } from '../utils/BranchUtils';
 
 /**
  * Component responsible for rendering all add node buttons
@@ -111,7 +112,7 @@ const AddNodeButtonRenderer = ({
                        
         // Add "Add a step" button at end of dashed line, but only for nodes that are not ifelse or splitflow
         // Branch-specific nodes will get specialized buttons instead
-        if (node.type !== 'ifelse' && node.type !== 'splitflow') {
+        if (node.type !== NODE_TYPES.IFELSE && node.type !== NODE_TYPES.SPLITFLOW) {
           // Add dashed edge
           buttons.push(
             <svg
@@ -171,24 +172,38 @@ const AddNodeButtonRenderer = ({
       }
       
       // Add branch endpoint buttons for IF/ELSE and SPLIT FLOW nodes
-      if (node.type === 'ifelse' || node.type === 'splitflow') {
+      if (node.type === NODE_TYPES.IFELSE || node.type === NODE_TYPES.SPLITFLOW) {
         // Get the branch configuration based on node type
         let branches = [];
         
-        if (node.type === 'ifelse') {
+        if (node.type === NODE_TYPES.IFELSE) {
           branches = [
             { id: 'yes', label: 'True Path' },
             { id: 'no', label: 'False Path' }
           ];
-        } else if (node.type === 'splitflow') {
-          // Get branches from the plugin based on node properties
-          const plugin = pluginRegistry.getNodeType('splitflow');
-          branches = plugin.getBranches(node.properties);
+        } else if (node.type === NODE_TYPES.SPLITFLOW) {
+          // Get branches from BranchUtils
+          branches = BranchUtils.getNodeBranches(node, pluginRegistry);
+          
+          // If no branches were returned, use default 3 paths
+          if (!branches || branches.length === 0) {
+            branches = [
+              { id: '1', label: 'Path 1' },
+              { id: '2', label: 'Path 2' }, 
+              { id: '3', label: 'Path 3' }
+            ];
+          }
         }
         
         // Render a button for each branch endpoint
         branches.forEach(branch => {
-          const branchEndpoint = getBranchEndpoint(node, branch.id, pluginRegistry);
+          // Use BranchUtils with fallback to handle positioning consistently
+          const branchEndpoint = BranchUtils.getBranchEndpoint(node, branch.id, {
+            DEFAULT_NODE_WIDTH,
+            DEFAULT_NODE_HEIGHT,
+            BRANCH_VERTICAL_SPACING: 40
+          });
+          
           if (!branchEndpoint) return;
           
           // Check if there's already a connection from this branch
@@ -204,11 +219,11 @@ const AddNodeButtonRenderer = ({
             
             // Determine button color based on node type
             let buttonStyle = '';
-            if (node.type === 'ifelse') {
+            if (node.type === NODE_TYPES.IFELSE) {
               buttonStyle = branch.id === 'yes' ?
                 'bg-indigo-50 border-indigo-200 text-indigo-500 hover:bg-indigo-100' :
                 'bg-purple-50 border-purple-200 text-purple-500 hover:bg-purple-100';
-            } else if (node.type === 'splitflow') {
+            } else if (node.type === NODE_TYPES.SPLITFLOW) {
               buttonStyle = 'bg-green-50 border-green-200 text-green-500 hover:bg-green-100';
             }
             
