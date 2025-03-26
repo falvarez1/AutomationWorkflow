@@ -29,9 +29,9 @@ const NodeContextMenu = ({ position, nodeType, visible, onAction, menuPosition =
         return {
           ...baseStyle,
           bottom: '100%',
-          left: `50%`,
+          left: `90%`,
           transform: `translateX(-50%) translateY(-${offsetY}px) translateX(${offsetX}px)`,
-          marginBottom: '8px'
+          marginBottom: '-4px'
         };
       case 'right':
         return {
@@ -39,7 +39,7 @@ const NodeContextMenu = ({ position, nodeType, visible, onAction, menuPosition =
           left: `100%`,
           top: '50%',
           transform: `translateY(-50%) translateX(${offsetX}px) translateY(${offsetY}px)`,
-          marginLeft: '8px'
+          marginLeft: '7px'
         };
       case 'left':
         return {
@@ -72,7 +72,7 @@ const NodeContextMenu = ({ position, nodeType, visible, onAction, menuPosition =
 
   return (
     <div
-      className="bg-white rounded-lg shadow-lg border border-gray-200 p-1 animate-fadeIn node-context-menu"
+      className="bg-white rounded-lg shadow-lg border border-gray-200 p-0 animate-fadeIn node-context-menu"
       style={menuStyles}
     >
       <div className={containerClass}>
