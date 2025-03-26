@@ -148,7 +148,7 @@ export const handleStepClick = (
 
 /**
  * Handles node dragging with optional grid snapping
- * 
+ *
  * @param {string} id - Node ID
  * @param {number} x - New X position
  * @param {number} y - New Y position
@@ -159,10 +159,9 @@ export const handleStepClick = (
 export const handleNodeDrag = (id, x, y, snapToGrid, workflowGraph, setWorkflowGraph) => {
   let newX = x;
   let newY = y;
-  if (snapToGrid) {
-    newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
-    newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
-  }
+  
+  // No special handling needed during drag - nodes move freely with the cursor
+  // Grid snapping will be applied at the end of the drag if the global setting is enabled
   
   // Update the node position in the graph
   setWorkflowGraph(prevGraph => {
@@ -172,10 +171,11 @@ export const handleNodeDrag = (id, x, y, snapToGrid, workflowGraph, setWorkflowG
     prevGraph.getAllNodes().forEach(node => {
       if (node.id === id) {
         // Store the current drag position on the node temporarily
-        const updatedNode = { 
-          ...node, 
+        const updatedNode = {
+          ...node,
           position: { x: newX, y: newY },
-          _currentDragPosition: { x: newX, y: newY } // Store for use in handleNodeDragEnd
+          _currentDragPosition: { x: newX, y: newY }, // Store for use in handleNodeDragEnd
+          _gridOffset: node._gridOffset // Preserve the grid offset
         };
         newGraph.addNode(updatedNode);
       } else {
@@ -210,22 +210,32 @@ export const handleNodeDragStart = (id, position, setDragStartPosition, handleCl
 
 /**
  * Handles end of node dragging
- * 
+ *
  * @param {string} id - Node ID
  * @param {Object} dragStartPosition - Starting position of drag
  * @param {Object} workflowGraph - Current graph state
  * @param {Function} setWorkflowGraph - State setter function
  * @param {Function} setDragStartPosition - State setter for drag position
  * @param {Object} commandManager - Command manager instance
+ * @param {boolean} globalSnapToGrid - Current global snap to grid setting
  */
-export const handleNodeDragEnd = (id, dragStartPosition, workflowGraph, setWorkflowGraph, setDragStartPosition, commandManager) => {
+export const handleNodeDragEnd = (id, dragStartPosition, workflowGraph, setWorkflowGraph, setDragStartPosition, commandManager, globalSnapToGrid) => {
   if (!dragStartPosition) return;
   
   const node = workflowGraph.getNode(id);
   if (!node) return;
   
   // Get final position from the temp drag position we stored
-  const currentPosition = node._currentDragPosition || node.position;
+  let currentPosition = node._currentDragPosition || node.position;
+  
+  // Apply grid snapping at the end of dragging if needed
+  if (globalSnapToGrid) {
+    // Apply grid snapping to the final position
+    currentPosition = {
+      x: Math.round(currentPosition.x / GRID_SIZE) * GRID_SIZE,
+      y: Math.round(currentPosition.y / GRID_SIZE) * GRID_SIZE
+    };
+  }
   
   // Only create a command if the position actually changed
   if (dragStartPosition.x !== currentPosition.x || dragStartPosition.y !== currentPosition.y) {

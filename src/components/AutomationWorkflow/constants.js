@@ -10,8 +10,8 @@ export const LAYOUT = {
   
   // Grid settings
   GRID: {
-    SIZE: 30,
-    COLOR: '#E5E7EB', // Default grid color
+    SIZE: 40,
+    COLOR: '#d8dbe1', // Default grid color
     SHOW_GRID: true,  // Whether to show the grid
     SNAP_TO_GRID: true, // Whether to snap nodes to grid by default
     DOT_SIZE: 2 // Size of grid dots in pixels

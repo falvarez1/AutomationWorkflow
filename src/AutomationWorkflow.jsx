@@ -272,7 +272,8 @@ const AutomationWorkflow = ({
       workflowGraph,
       setWorkflowGraph,
       setDragStartPosition,
-      commandManager
+      commandManager,
+      snapToGrid // Pass the current global snapToGrid setting
     );
   };
 
