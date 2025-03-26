@@ -321,7 +321,7 @@ class Graph {
         title: step.title,
         subtitle: step.subtitle,
         position: { ...step.position },
-        height: step.height || DEFAULT_NODE_HEIGHT,
+        height: step.height || DEFAULT_NODE_HEIGHT, // stores the node's height, needs to be adjusted at the moment of inserting and rerendering based on content
         contextMenuConfig: step.contextMenuConfig,
         isNew: step.isNew,
         properties: step.properties || {},

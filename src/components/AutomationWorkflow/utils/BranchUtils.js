@@ -56,9 +56,7 @@ export const BranchUtils = {
       const startPosition = -(spacing * (totalBranches - 1)) / 2;
       const xOffset = startPosition + (index * spacing);
       
-      let splitFlowYOffset = 20;  // since the splitflow nodes are a little taller
-
-      return { x: startX + xOffset, y: startY + BRANCH_EDGE_OFFSET + splitFlowYOffset };
+      return { x: startX + xOffset, y: startY + BRANCH_EDGE_OFFSET };
     }
     
     // Default return for other node types

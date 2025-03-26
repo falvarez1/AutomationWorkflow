@@ -4,7 +4,7 @@
 export const LAYOUT = {
   // Node dimensions
   NODE: {
-    DEFAULT_HEIGHT: 90,
+    DEFAULT_HEIGHT: 82,
     DEFAULT_WIDTH: 340,
   },
   
@@ -315,7 +315,7 @@ export const INITIAL_WORKFLOW_STEPS = Object.freeze([
     title: 'Split Flow',
     subtitle: 'Execute multiple paths in parallel',
     position: { x: getSafeWindowDimensions().width / 2 - 190, y: 645 },
-    height: LAYOUT.NODE.DEFAULT_HEIGHT,
+    height: 102, //LAYOUT.NODE.DEFAULT_HEIGHT,
     contextMenuConfig: DEFAULT_CONTEXT_MENU_CONFIG,
     branchConnections: {
       "path1": { targetNodeId: "path1-action-node" },
