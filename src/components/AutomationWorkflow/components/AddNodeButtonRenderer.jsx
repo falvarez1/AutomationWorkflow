@@ -237,7 +237,8 @@ const AddNodeButtonRenderer = ({
                   top: buttonPosition.y - 10,
                   left: buttonPosition.x - 65,
                   width: 130,
-                  zIndex: 5
+                  zIndex: 5,
+                  transition: node._currentDragPosition ? 'none' : 'top 0.2s ease, left 0.2s ease'
                 }}
               >
                 <button
