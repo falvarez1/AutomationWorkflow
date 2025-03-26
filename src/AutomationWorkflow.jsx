@@ -48,7 +48,7 @@ import {
   GRID_DOT_SIZE,
   SNAP_TO_GRID,
   STANDARD_VERTICAL_SPACING,
-  BRANCH_VERTICAL_SPACING,
+  NODE_BRANCH_VERTICAL_SPACING,
   BRANCH_LEFT_OFFSET,
   BRANCH_RIGHT_OFFSET
 } from './components/AutomationWorkflow/constants';
@@ -188,7 +188,7 @@ const AutomationWorkflow = ({
 
   // Get node placement settings with defaults from constants
   const standardVerticalSpacing = nodePlacementOptions.standardVerticalSpacing || STANDARD_VERTICAL_SPACING;
-  const branchVerticalSpacing = nodePlacementOptions.branchVerticalSpacing || BRANCH_VERTICAL_SPACING;
+  const branchVerticalSpacing = nodePlacementOptions.branchVerticalSpacing || NODE_BRANCH_VERTICAL_SPACING;
   const branchLeftOffset = nodePlacementOptions.branchLeftOffset || BRANCH_LEFT_OFFSET;
   const branchRightOffset = nodePlacementOptions.branchRightOffset || BRANCH_RIGHT_OFFSET;
 
@@ -348,7 +348,7 @@ const AutomationWorkflow = ({
       (node, branchId) => BranchUtils.getBranchEndpoint(node, branchId, pluginRegistry, {
         DEFAULT_NODE_WIDTH: LAYOUT.NODE.DEFAULT_WIDTH,
         DEFAULT_NODE_HEIGHT: LAYOUT.NODE.DEFAULT_HEIGHT,
-        BRANCH_VERTICAL_SPACING: 40
+        BRANCH_EDGE_OFFSET: LAYOUT.EDGE.BRANCH_EDGE_OFFSET
       }),
       pluginRegistry,
       layoutConfig,

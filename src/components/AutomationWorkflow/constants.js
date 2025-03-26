@@ -48,7 +48,7 @@ export const LAYOUT = {
     STANDARD_VERTICAL_SPACING: 175,
     
     // Vertical spacing between nodes in branch paths
-    NODE_BRANCH_VERTICAL_SPACING: 500,
+    NODE_BRANCH_VERTICAL_SPACING: 175,
 
     FORCE_VERTICAL_ADJUSTMENT: 170, // Force vertical adjustment to lower nodes when adding a node
     
@@ -74,8 +74,6 @@ export const BUTTON_Y_OFFSET = LAYOUT.BUTTON.Y_OFFSET;
 export const EDGE_INPUT_Y_OFFSET = LAYOUT.EDGE.INPUT_Y_OFFSET;
 export const EDGE_OUTPUT_Y_OFFSET = LAYOUT.EDGE.OUTPUT_Y_OFFSET;
 export const STANDARD_VERTICAL_SPACING = LAYOUT.NODE_PLACEMENT.STANDARD_VERTICAL_SPACING;
-// For backward compatibility - using new BRANCH_EDGE_OFFSET (deprecated)
-export const BRANCH_VERTICAL_SPACING = LAYOUT.EDGE.BRANCH_EDGE_OFFSET;
 // New clearer named exports
 export const BRANCH_EDGE_OFFSET = LAYOUT.EDGE.BRANCH_EDGE_OFFSET;
 export const BRANCH_PATH_BUTTON_OFFSET = LAYOUT.EDGE.BRANCH_PATH_BUTTON_OFFSET;

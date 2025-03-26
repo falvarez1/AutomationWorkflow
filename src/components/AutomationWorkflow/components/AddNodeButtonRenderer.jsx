@@ -102,7 +102,7 @@ const AddNodeButtonRenderer = ({
         
         const endPos = {
           x: startPos.x,
-          y: startPos.y + 70 // Distance for dashed edge
+          y: startPos.y + 30 // Distance for dashed edge
         };
         
         const buttonPosition = {
@@ -142,7 +142,7 @@ const AddNodeButtonRenderer = ({
               key={`add-step-button-${node.id}`}
               className="absolute flex items-center justify-center"
               style={{
-                top: buttonPosition.y - 10, // Adjust to center it
+                top: buttonPosition.y, // Adjust to center it
                 left: buttonPosition.x - 70, // Adjust to center it
                 width: 140,
                 borderRadius: 20,
