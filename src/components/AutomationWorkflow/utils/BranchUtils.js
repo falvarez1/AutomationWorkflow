@@ -89,5 +89,55 @@ export const BranchUtils = {
     }
     
     return branches;
-  }
+  },
+
+    /**
+   * Gets the most appropriate branch ID for a node based on context
+   * @param {Object} node - The node to check
+   * @param {Object} targetNode - The target node being connected to (optional)
+   * @param {Object} pluginRegistry - The plugin registry to look up node type metadata
+   * @param {Object} graph - The graph instance to look up existing edges
+   * @returns {Object} - { isBranchNode: boolean, branchId: string|null }
+   */
+    getBestBranchId(node, targetNode = null, pluginRegistry, graph) {
+      if (!node) return { isBranchNode: false, branchId: null };
+      
+      // First try using BranchUtils if plugin registry is available
+      if (pluginRegistry) {
+        const branches = BranchUtils.getNodeBranches(node, pluginRegistry);
+        if (branches && branches.length > 0) {
+          // Make intelligent branch selection based on node type and target position
+          if (node.type === NODE_TYPES.IFELSE) {
+            // For ifelse nodes, prefer 'yes' branch for the primary flow
+            return { isBranchNode: true, branchId: 'yes' };
+          } 
+          else if (node.type === NODE_TYPES.SPLITFLOW) {
+            // For splitflow, use first path by default
+            // If target node position is available, could select branch based on position
+            if (targetNode) {
+              // Choose branch based on relative position of target node
+              const isTargetOnRight = targetNode.position.x > node.position.x;
+              // For splitflow with 2+ paths, use path1 or path2 based on position
+              return { 
+                isBranchNode: true, 
+                branchId: isTargetOnRight ? 'path2' : 'path1'
+              };
+            }
+            return { isBranchNode: true, branchId: branches[0].id };
+          } 
+          else {
+            // For other branch node types, use first branch
+            return { isBranchNode: true, branchId: branches[0].id };
+          }
+        }
+      }
+      
+      // Fallback to existing behavior for edge detection
+      const branchEdges = graph.getBranchOutgoingEdges(node.id);
+      if (branchEdges && branchEdges.length > 0) {
+        return { isBranchNode: true, branchId: branchEdges[0].label };
+      }
+      
+      return { isBranchNode: false, branchId: null };
+    }
 };

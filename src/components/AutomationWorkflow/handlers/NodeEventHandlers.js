@@ -337,19 +337,20 @@ export const handleUpdateNodeProperty = (nodeId, propertyId, value, workflowGrap
 
 /**
  * Handles deleting a node
- * 
+ *
  * @param {string} nodeId - Node ID to delete
  * @param {Object} workflowGraph - Current graph state
  * @param {Function} setWorkflowGraph - State setter function
  * @param {string} selectedNodeId - Currently selected node ID
  * @param {Function} setSelectedNodeId - State setter for selected node
  * @param {Object} commandManager - Command manager instance
+ * @param {Object} pluginRegistry - Plugin registry for branch detection
  */
-export const handleDeleteNode = (nodeId, workflowGraph, setWorkflowGraph, selectedNodeId, setSelectedNodeId, commandManager) => {
+export const handleDeleteNode = (nodeId, workflowGraph, setWorkflowGraph, selectedNodeId, setSelectedNodeId, commandManager, pluginRegistry) => {
   if (!nodeId) return;
   
   // Create delete command
-  const deleteNodeCommand = new DeleteNodeCommand(workflowGraph, nodeId);
+  const deleteNodeCommand = new DeleteNodeCommand(workflowGraph, nodeId, pluginRegistry);
   
   // Execute command with commandUtils
   executeGraphCommand(deleteNodeCommand, commandManager, setWorkflowGraph, {

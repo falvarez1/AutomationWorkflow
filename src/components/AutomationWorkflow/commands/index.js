@@ -1,11 +1,6 @@
 import { Command } from './Command';
 import commandManager from './CommandManager';
 
-// Original command pattern implementations 
-import { DeleteNodeCommand as OriginalDeleteNodeCommand } from './DeleteNodeCommand';
-import { MoveNodeCommand as OriginalMoveNodeCommand } from './MoveNodeCommand';
-import { AddNodeCommand as OriginalAddNodeCommand } from './AddNodeCommand';
-
 // New graph-based command pattern implementations
 import { 
   AddNodeCommand,
@@ -30,10 +25,6 @@ export {
   UpdateNodeCommand,
   UpdateEdgeCommand,
   UpdateNodeHeightCommand,
-  DuplicateNodeCommand,
-  
-  // Original commands (renamed for backwards compatibility)
-  OriginalAddNodeCommand,
-  OriginalMoveNodeCommand,
-  OriginalDeleteNodeCommand
+  DuplicateNodeCommand
+
 };

@@ -223,6 +223,9 @@ class Graph {
    * @returns {Edge} The created edge
    */
   connect(sourceId, targetId, type = 'default', label = null) {
+    
+    console.log(`Graph.connect: Creating ${type} connection from ${sourceId} to ${targetId}${label ? ' with branch ' + label : ''}`);
+  
     const edgeId = `${sourceId}_to_${targetId}_${type}${label ? `_${label}` : ''}`;
     const edge = new Edge(edgeId, sourceId, targetId, type, label);
     this.addEdge(edge);
@@ -253,6 +256,7 @@ class Graph {
       }
     }
     
+    console.log(`Connection created: ${edgeId} with data: `, edge);
     return edge;
   }
 
@@ -383,6 +387,15 @@ class Graph {
         connections: outgoingConnections
       };
     });
+  }
+
+  debugState() {
+    console.table(Array.from(this.nodes.values()).map(n => ({
+      id: n.id, type: n.type, x: n.position.x, y: n.position.y
+    })));
+    console.table(Array.from(this.edges.values()).map(e => ({
+      from: e.sourceId, to: e.targetId, type: e.type, label: e.label 
+    })));
   }
 }
 

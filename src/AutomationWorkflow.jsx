@@ -284,7 +284,8 @@ const AutomationWorkflow = ({
       setWorkflowGraph,
       selectedNodeId,
       setSelectedNodeId,
-      commandManager
+      commandManager,
+      pluginRegistry // Pass plugin registry for branch detection
     );
   };
 

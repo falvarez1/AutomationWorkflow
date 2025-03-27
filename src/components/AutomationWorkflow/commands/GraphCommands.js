@@ -1,10 +1,11 @@
 /**
  * Command pattern implementation for graph operations
  */
-import { LAYOUT, NODE_BRANCH_VERTICAL_SPACING, FORCE_NODE_VERTICAL_ADJUSTMENT } from '../constants';
+import { FORCE_NODE_VERTICAL_ADJUSTMENT, NODE_TYPES } from '../constants';
+import { BranchUtils } from '../utils/BranchUtils';
 
 class AddNodeCommand {
-  constructor(graph, newNode, sourceNodeId = null, connectionType = 'default', branchId = null) {
+  constructor(graph, newNode, sourceNodeId = null, connectionType = 'default', branchId = null, pluginRegistry = null) {
     this.graph = graph;
     this.newNode = { ...newNode };
     this.sourceNodeId = sourceNodeId;
@@ -16,8 +17,9 @@ class AddNodeCommand {
     this.oldEdge = null;
     this.nodeVerticalSpacing = FORCE_NODE_VERTICAL_ADJUSTMENT; //  Adjusts how far to move the nodes down when adding a new node
     this.movedNodes = []; // Track nodes that were moved down
+    this.pluginRegistry = pluginRegistry; // Store the plugin registry for branch detection
   }
-  
+ 
   /**
    * Find nodes that are in the same branch path as the new node
    * Excludes sibling branches (other branches from the same parent)
@@ -112,6 +114,9 @@ class AddNodeCommand {
     
     console.log("Nodes to be moved:", this.movedNodes);
 
+    // Add the node to the graph
+    this.graph.addNode(this.newNode);
+
     // If there's a source node, create the connection
     if (this.sourceNodeId) {
       const sourceNode = this.graph.getNode(this.sourceNodeId);
@@ -139,12 +144,32 @@ class AddNodeCommand {
           
           // If there was a previous target, connect the new node to it
           if (this.oldTargetNodeId) {
-            this.graph.connect(
-              this.addedNodeId,
-              this.oldTargetNodeId,
-              'default'
-            );
+            // Get the new node and target node
+            const newNode = this.graph.getNode(this.addedNodeId);  //  <---- this is coming back undefined
+            const targetNode = this.graph.getNode(this.oldTargetNodeId);
+
+            // Use our enhanced method to determine the best branch ID
+            const { isBranchNode, branchId } = BranchUtils.getBestBranchId(newNode, targetNode, this.pluginRegistry, this.graph);
+            if (isBranchNode && branchId) {
+              // For branch-based nodes, connect using the selected branch handle
+              console.log(`Creating branch connection from ${this.addedNodeId} to ${this.oldTargetNodeId} with branch ${branchId}`);
+              this.createdTargetEdge = this.graph.connect(
+                this.addedNodeId,
+                this.oldTargetNodeId,
+                'branch',
+                branchId
+              );
+            } else {
+              // For non-branch nodes, use default connection
+              console.log(`Creating default connection from ${this.addedNodeId} to ${this.oldTargetNodeId}`);
+              this.createdTargetEdge = this.graph.connect(
+                this.addedNodeId,
+                this.oldTargetNodeId,
+                'default'
+              );
+            }
           }
+
         } else if (this.connectionType === 'branch' && this.branchId) {
           // For branch connections, similar process
           const existingBranchEdges = this.graph.getBranchOutgoingEdges(this.sourceNodeId);
@@ -166,18 +191,35 @@ class AddNodeCommand {
           
           // Connect to previous target if it existed
           if (this.oldTargetNodeId) {
-            this.graph.connect(
-              this.addedNodeId,
-              this.oldTargetNodeId,
-              'default'
-            );
+            // Get the new node and target node
+            const newNode = this.graph.getNode(this.addedNodeId);
+            const targetNode = this.graph.getNode(this.oldTargetNodeId);
+            
+            // Use our enhanced method to determine the best branch ID
+            const { isBranchNode, branchId } = BranchUtils.getBestBranchId(newNode, targetNode, this.pluginRegistry, this.graph);
+            
+            if (isBranchNode && branchId) {
+              // For branch-based nodes, connect using the selected branch handle
+              this.createdTargetEdge = this.graph.connect(
+                this.addedNodeId,
+                this.oldTargetNodeId,
+                'branch',
+                branchId
+              );
+              console.log(`Branch flow connected using ${branchId} branch to ${this.oldTargetNodeId}`);
+            } else {
+              // For non-branch nodes, use default connection
+              this.createdTargetEdge = this.graph.connect(
+                this.addedNodeId,
+                this.oldTargetNodeId,
+                'default'
+              );
+              console.log(`Branch flow connected using default to ${this.oldTargetNodeId}`);
+            }
           }
         }
       }
-    }
-    
-    // Add the node to the graph
-    this.graph.addNode(this.newNode);
+    } 
     
     // Move all identified nodes down
     if (this.movedNodes.length > 0) {
@@ -272,13 +314,14 @@ class MoveNodeCommand {
 }
 
 class DeleteNodeCommand {
-  constructor(graph, nodeId) {
+  constructor(graph, nodeId, pluginRegistry = null) {
     this.graph = graph;
     this.nodeId = nodeId;
     this.deletedNode = null;
     this.incomingEdges = [];
     this.outgoingEdges = [];
     this.reconnectedEdges = [];
+    this.pluginRegistry = pluginRegistry; // Store the plugin registry for branch detection
   }
 
   execute() {
@@ -300,8 +343,22 @@ class DeleteNodeCommand {
       // For each incoming edge, create a new edge that bypasses the deleted node
       this.incomingEdges.forEach(incomingEdge => {
         const sourceNodeId = incomingEdge.sourceId;
-        const edgeType = incomingEdge.type;
-        const edgeLabel = incomingEdge.label;
+        const sourceNode = this.graph.getNode(sourceNodeId);
+        let edgeType = incomingEdge.type;
+        let edgeLabel = incomingEdge.label;
+        
+        // If the source is a branch-based node but not already using a branch connection,
+        // use our helper method to determine if we should use a branch handle
+        if (sourceNode && edgeType === 'default') {
+          // Check if this is a branch node
+          const { isBranchNode, branchId } = BranchUtils.getBestBranchId(sourceNode, this.graph.getNode(targetNodeId), this.pluginRegistry, this.graph);
+            
+          if (isBranchNode && branchId) {
+            // For branch-based nodes, use the first branch handle
+            edgeType = 'branch';
+            edgeLabel = branchId;
+          }
+        }
         
         // Create a new edge from the source of the incoming edge to the target of the outgoing edge
         const newEdge = this.graph.connect(

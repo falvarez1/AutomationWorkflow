@@ -76,11 +76,12 @@ console.log('branchVerticalSpacing', branchVerticalSpacing);
   
   // Create and execute the add node command
   const addNodeCommand = new AddNodeCommand(
-    workflowGraph, 
+    workflowGraph,
     newNode,
     sourceNode.id,
     connectionType,
-    branchId
+    branchId,
+    pluginRegistry // Pass the pluginRegistry to the command for branch detection
   );
   
   // Execute command with commandUtils
