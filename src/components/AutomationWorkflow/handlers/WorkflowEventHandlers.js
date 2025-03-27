@@ -56,15 +56,12 @@ export const handleAddStep = (
     // Use configurable branch offset
     const branchOffset = isLeftNode ? branchLeftOffset : branchRightOffset;
 
-console.log('branchVerticalSpacing', branchVerticalSpacing);
-
     newPos = {
       x: branchEndpoint.x - (DEFAULT_NODE_WIDTH / 2) + branchOffset,
       y: branchEndpoint.y + branchVerticalSpacing
     };
   } else {
     // For standard connections, place new node below the source node
-    console.log('standardVerticalSpacing for standard', standardVerticalSpacing);
     newPos = {
       x: sourceNode.position.x,
       y: sourceNode.position.y + standardVerticalSpacing
