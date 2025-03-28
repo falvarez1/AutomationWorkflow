@@ -618,14 +618,12 @@ const handleRedoEvent = () => {
           {/* Properties panel */}
           {selectedNode && (
             <div className="w-1/3 max-w-md border-l border-gray-200 bg-white overflow-y-auto animate-slideIn">
-              <div className="p-6"> 
-                <NodePropertiesPanel
-                  node={selectedNode}
-                  registry={pluginRegistry}
-                  onUpdate={handleUpdateNodePropertyEvent}
-                  onClose={() => setSelectedNodeId(null)}
-                />
-              </div>
+              <NodePropertiesPanel
+                node={selectedNode}
+                registry={pluginRegistry}
+                onUpdate={handleUpdateNodePropertyEvent}
+                onClose={() => setSelectedNodeId(null)}
+              />
             </div>
           )}
         </div>
