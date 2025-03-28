@@ -15,25 +15,52 @@ const BaseFormControl = ({
   ...rest
 }) => {
   return (
-    <div className={`form-control mb-4 ${className}`}>
-      {label && (
-        <label 
-          htmlFor={id} 
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          {label}
-        </label>
-      )}
-      
-      {description && (
-        <p className="text-sm text-gray-500 mb-2">{description}</p>
-      )}
-      
-      {renderInput && renderInput(rest)}
-      
-      {error && (
-        <p className="mt-1 text-sm text-red-500">{error}</p>
-      )}
+    <div className={`form-control mb-5 ${className}`}>
+      {/* Stack layout with labels above inputs */}
+      <div className="flex flex-col items-start">
+        {label && (
+          <>
+            {/* Label above input */}
+            <div className="w-full text-left mb-1">
+              <label
+                htmlFor={id}
+                className="block text-sm font-medium text-gray-700"
+              >
+                {label}
+              </label>
+            </div>
+            {/* Input container */}
+            <div className="w-full">
+              {renderInput && renderInput(rest)}
+
+              {/* Add the description below the input */}
+              {description && (
+                <p className="text-xs text-gray-500 mt-1">{description}</p>
+              )}
+
+              {/* Show errors in red below the description */}
+              {error && (
+                <p className="mt-1 text-xs text-red-500">{error}</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {!label && renderInput && (
+          // Container for input when no label is present
+          <div className="w-full">
+            {renderInput(rest)}
+
+            {description && (
+              <p className="text-xs text-gray-500 mt-1">{description}</p>
+            )}
+
+            {error && (
+              <p className="mt-1 text-xs text-red-500">{error}</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

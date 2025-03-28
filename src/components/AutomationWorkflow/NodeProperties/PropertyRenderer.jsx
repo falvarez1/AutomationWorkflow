@@ -121,21 +121,21 @@ export const PropertyRenderer = ({
       const groupProperties = schema.filter(prop => prop.groupId === group.id);
       
       return (
-        <div key={group.id} className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
-          <div 
-            className="flex justify-between items-center p-3 bg-gray-50 cursor-pointer"
+        <div key={group.id} className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+          <div
+            className="flex justify-between items-center px-4 py-3 bg-white cursor-pointer"
             onClick={() => toggleGroup(group.id)}
           >
             <h3 className="font-medium text-gray-900">{group.label}</h3>
-            <ChevronRight 
-              className={`w-4 h-4 transition-transform duration-200 ${expandedGroups[group.id] ? 'transform rotate-90' : ''}`} 
+            <ChevronRight
+              className={`w-5 h-5 transition-transform duration-200 ${expandedGroups[group.id] ? 'transform rotate-90' : ''}`}
             />
           </div>
           
           {expandedGroups[group.id] && (
-            <div className="p-3">
+            <div className="px-4 py-3 border-t border-gray-200">
               {group.description && (
-                <p className="text-sm text-gray-500 mb-3">{group.description}</p>
+                <p className="text-sm text-gray-500 mb-4">{group.description}</p>
               )}
               
               {renderProperties(groupProperties)}
