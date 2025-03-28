@@ -10,37 +10,25 @@ import { Graph } from '../graph/Graph';
  * @param {Function} setWorkflowGraph - React state setter for workflow graph
  */
 export const updateGraphFromCommand = (commandInstance, setWorkflowGraph) => {
-  // First clear the graph (prevents stale state issues)
-  setWorkflowGraph(new Graph());
-  
-  // Then set it to the new state from the command
   setWorkflowGraph(() => {
     const newGraph = new Graph();
-    
-    // Copy all nodes from the updated graph
-    commandInstance.graph.getAllNodes().forEach(node => {
-      newGraph.addNode({ ...node });
-    });
-    
-    // Copy all edges from the updated graph
+    commandInstance.graph.getAllNodes().forEach(node => newGraph.addNode({ ...node }));
     commandInstance.graph.getAllEdges().forEach(edge => {
       newGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
     });
-    
     return newGraph;
   });
 };
 
 /**
- * Executes a graph command with standardized execute and undo behavior
+ * Execute a command and update the graph state
  * 
- * This centralizes the command pattern implementation and eliminates
- * the duplicate code that appears in multiple command handlers
- * 
- * @param {Object} command - The command to execute
- * @param {Object} commandManager - The command manager instance
- * @param {Function} setWorkflowGraph - React state setter
- * @param {Object} options - Additional options like callbacks
+ * @param {Command} command - The command to execute
+ * @param {CommandManager} commandManager - Command manager instance
+ * @param {Function} setWorkflowGraph - Function to update the workflow graph
+ * @param {Object} options - Additional options
+ * @param {Function} options.onExecuteSuccess - Callback on successful execution
+ * @param {Function} options.onExecuteError - Callback on execution error
  */
 export const executeGraphCommand = (
   command, 
@@ -48,20 +36,86 @@ export const executeGraphCommand = (
   setWorkflowGraph, 
   options = {}
 ) => {
-  const { onExecuteSuccess, onUndoSuccess } = options;
-  
-  commandManager.executeCommand({
-    execute: () => {
-      command.execute();
-      updateGraphFromCommand(command, setWorkflowGraph);
-      if (onExecuteSuccess) onExecuteSuccess(command);
-      return true;
-    },
-    undo: () => {
-      command.undo();
-      updateGraphFromCommand(command, setWorkflowGraph);
-      if (onUndoSuccess) onUndoSuccess(command);
-      return true;
+  try {
+    // Special handling for DeleteNodeCommand to guarantee node removal
+    if (command.constructor.name === 'DeleteNodeCommand') {
+      const nodeId = command.nodeId;
+      
+      // Try executing the command
+      const result = commandManager.executeCommand(command);
+      
+      // Update UI regardless of command success
+      setTimeout(() => {
+        setWorkflowGraph(currentGraph => {
+          const freshGraph = new Graph();
+          
+          // Add all nodes except the deleted one
+          currentGraph.getAllNodes().forEach(node => {
+            if (node.id !== nodeId) {
+              freshGraph.addNode({...node});
+            }
+          });
+          
+          // Add all edges except those connected to deleted node
+          currentGraph.getAllEdges().forEach(edge => {
+            if (edge.sourceId !== nodeId && edge.targetId !== nodeId) {
+              freshGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+            }
+          });
+          
+          return freshGraph;
+        });
+      }, 0);
+      
+      // Call appropriate callbacks
+      if (result && options.onExecuteSuccess) {
+        options.onExecuteSuccess(result);
+      } else if (!result && options.onExecuteError) {
+        options.onExecuteError(new Error('Delete command execution failed'));
+      }
+      
+      return result;
     }
-  });
-};
+    
+    // Regular command execution
+    const result = commandManager.executeCommand(command);
+    
+    if (result) {
+      // Create a proper graph instance from the command's graph
+      setWorkflowGraph(() => {
+        const freshGraph = new Graph();
+        
+        // Add all nodes to the fresh graph
+        command.graph.getAllNodes().forEach(node => {
+          freshGraph.addNode({...node});
+        });
+        
+        // Add all edges to the fresh graph
+        command.graph.getAllEdges().forEach(edge => {
+          if (freshGraph.getNode(edge.sourceId) && freshGraph.getNode(edge.targetId)) {
+            freshGraph.connect(edge.sourceId, edge.targetId, edge.type, edge.label);
+          }
+        });
+        
+        return freshGraph;
+      });
+      
+      // Call success callback if provided
+      if (options.onExecuteSuccess) {
+        options.onExecuteSuccess(result);
+      }
+    } else if (options.onExecuteError) {
+      options.onExecuteError(new Error('Command execution failed'));
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error executing graph command:', error);
+    
+    if (options.onExecuteError) {
+      options.onExecuteError(error);
+    }
+    
+    return false;
+  }
+}
