@@ -224,7 +224,7 @@ class Graph {
    */
   connect(sourceId, targetId, type = 'default', label = null) {
     
-    console.log(`Graph.connect: Creating ${type} connection from ${sourceId} to ${targetId}${label ? ' with branch ' + label : ''}`);
+    //console.log(`Graph.connect: Creating ${type} connection from ${sourceId} to ${targetId}${label ? ' with branch ' + label : ''}`);
   
     const edgeId = `${sourceId}_to_${targetId}_${type}${label ? `_${label}` : ''}`;
     const edge = new Edge(edgeId, sourceId, targetId, type, label);
@@ -256,7 +256,7 @@ class Graph {
       }
     }
     
-    console.log(`Connection created: ${edgeId} with data: `, edge);
+    //console.log(`Connection created: ${edgeId} with data: `, edge);
     return edge;
   }
 
@@ -396,6 +396,109 @@ class Graph {
     console.table(Array.from(this.edges.values()).map(e => ({
       from: e.sourceId, to: e.targetId, type: e.type, label: e.label 
     })));
+  }
+
+  /**
+   * Check if an edge would create a duplicate connection
+   * @param {string} sourceId - Source node ID
+   * @param {string} targetId - Target node ID
+   * @param {string} type - Edge type
+   * @param {string} label - Edge label
+   * @returns {boolean} True if this would create a duplicate
+   */
+  isDuplicateEdge(sourceId, targetId, type, label) {
+    return this.getOutgoingEdges(sourceId).some(edge => 
+      edge.targetId === targetId && 
+      edge.type === type && 
+      (label ? edge.label === label : !edge.label)
+    );
+  }
+
+  /**
+   * Safer version of connect that validates before creating an edge
+   * @param {string} sourceId - Source node ID
+   * @param {string} targetId - Target node ID
+   * @param {string} type - Edge type
+   * @param {string} label - Edge label
+   * @returns {Object|null} The created edge or null if invalid
+   */
+  safeConnect(sourceId, targetId, type, label) {
+    const validation = this.validateEdge(sourceId, targetId, type, label);
+    if (!validation.isValid) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Invalid edge:', validation.errors);
+      }
+      return null;
+    }
+    return this.connect(sourceId, targetId, type, label);
+  }
+
+  /**
+   * Verify graph integrity by checking for node/edge inconsistencies
+   * @returns {{isValid: boolean, errors: Array}} Validation result
+   */
+  verifyIntegrity() {
+    const errors = [];
+    const nodes = this.getAllNodes();
+    const edges = this.getAllEdges();
+    
+    // Check for edges that reference non-existent nodes
+    edges.forEach(edge => {
+      if (!this.getNode(edge.sourceId)) {
+        errors.push(`Edge ${edge.id} references non-existent source node ${edge.sourceId}`);
+      }
+      if (!this.getNode(edge.targetId)) {
+        errors.push(`Edge ${edge.id} references non-existent target node ${edge.targetId}`);
+      }
+    });
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
+   * Validate an edge before adding it to the graph
+   *
+   * @param {string} sourceId - Source node ID
+   * @param {string} targetId - Target node ID
+   * @param {string} type - Edge type
+   * @param {string} label - Optional edge label
+   * @returns {{isValid: boolean, errors: string[]}} - Validation result
+   */
+  validateEdge(sourceId, targetId, type, label) {
+    const errors = [];
+    
+    // Ensure source node exists
+    if (!this.getNode(sourceId)) {
+      errors.push(`Source node '${sourceId}' does not exist`);
+    }
+    
+    // Ensure target node exists
+    if (!this.getNode(targetId)) {
+      errors.push(`Target node '${targetId}' does not exist`);
+    }
+    
+    // Prevent self-loops
+    if (sourceId === targetId) {
+      errors.push('Cannot connect a node to itself');
+    }
+    
+    // Validate edge type
+    if (!['default', 'branch'].includes(type)) {
+      errors.push(`Invalid edge type: '${type}'`);
+    }
+    
+    // Validate branch edges have labels
+    if (type === 'branch' && !label) {
+      errors.push('Branch edges must have a label');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
   }
 }
 

@@ -107,6 +107,9 @@ import {
   CheckboxControl
 } from './components/AutomationWorkflow/controls';
 
+// Add this code right after your imports
+import { GraphDebugger } from './components/AutomationWorkflow/utils/GraphDebugger';
+
 // Register node types (keep this part outside the component)
 pluginRegistry.registerNodeType(TriggerNodePlugin);
 pluginRegistry.registerNodeType(ControlNodePlugin);
@@ -156,6 +159,7 @@ const AutomationWorkflow = ({
     workflowGraph,
     setWorkflowGraph,
     workflowSteps,
+    setWorkflowSteps,
     selectedNodeId,
     setSelectedNodeId,
     selectedNode,
@@ -365,13 +369,15 @@ const AutomationWorkflow = ({
   }, [workflowGraph, branchLeftOffset, branchRightOffset, branchVerticalSpacing, standardVerticalSpacing, setWorkflowGraph, handleCloseMenuEvent]);
 
   // Create handler for undo and redo actions
-  const handleUndoEvent = () => {
-    handleUndo(commandManager);
-  };
+const handleUndoEvent = () => {
+  console.log("Executing undo operation...");
+  handleUndo(commandManager, setWorkflowGraph);
+};
 
-  const handleRedoEvent = () => {
-    handleRedo(commandManager);
-  };
+const handleRedoEvent = () => {
+  console.log("Executing redo operation...");
+  handleRedo(commandManager, setWorkflowGraph);
+};
 
   const handleShowExecuteDialogEvent = () => {
     setShowExecuteDialog(true);
@@ -513,6 +519,36 @@ const AutomationWorkflow = ({
   const getWorkflowInputSchemaFn = () => {
     return getWorkflowInputSchema(workflowSteps, pluginRegistry);
   };
+  
+  // Replace your existing debug effect with this simpler implementation
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && workflowGraph && commandManager) {
+      // Setup the debugger with the current workflow graph, command manager, and setter
+      GraphDebugger.setupDebugger(workflowGraph, commandManager, setWorkflowGraph, setWorkflowSteps);
+      
+      return () => {
+        // Keep a placeholder when component unmounts
+        if (window.workflowDebugger) {
+          window.workflowDebugger = {
+            status: 'component unmounted',
+            help: () => console.log('The workflow component is not currently mounted.')
+          };
+        }
+      };
+    }
+  }, [workflowGraph, setWorkflowGraph, setWorkflowSteps]); // Added setWorkflowGraph to dependencies
+
+  // Add this useEffect to verify selected node still exists after any graph change
+  useEffect(() => {
+    if (selectedNodeId && workflowGraph) {
+      // Check if the selected node still exists in the graph
+      const nodeExists = workflowGraph.getNode(selectedNodeId);
+      if (!nodeExists) {
+        console.log(`Selected node ${selectedNodeId} no longer exists, clearing selection`);
+        setSelectedNodeId(null);
+      }
+    }
+  }, [workflowGraph, selectedNodeId, setSelectedNodeId]);
 
   return (
     <ErrorBoundary>

@@ -154,6 +154,19 @@ const WorkflowStep = ({
   const handleMouseDown = (e) => {
     if (e.button !== 0) return; // Only handle left-click
 
+    // Check if this is a click on a button or context menu
+    const target = e.target;
+    const isMenuClick = target.closest('[data-context-menu="true"]') || 
+                      target.closest('button') ||
+                      target.tagName.toLowerCase() === 'button';
+                        
+    // Don't start drag operation if clicking on menu items
+    if (isMenuClick) {
+      // Just handle the normal click without drag
+      setWasJustClicked(true);
+      return;
+    }
+
     // Set the clicked flag to prevent deselection
     setWasJustClicked(true);
 
@@ -325,6 +338,7 @@ const WorkflowStep = ({
         offsetX={contextMenuConfig.offsetX}
         offsetY={contextMenuConfig.offsetY}
         orientation={contextMenuConfig.orientation}
+        data-context-menu="true"
       />
 
       {isDragging && (
