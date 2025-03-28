@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { ValidationEngine } from '../validation/ValidationEngine';
+import InfoTooltip from '../ui/InfoTooltip';
 
 /**
  * Property Renderer
@@ -126,7 +127,10 @@ export const PropertyRenderer = ({
             className="flex justify-between items-center px-4 py-3 bg-white cursor-pointer"
             onClick={() => toggleGroup(group.id)}
           >
-            <h3 className="font-medium text-gray-900">{group.label}</h3>
+            <div className="flex items-center">
+              <h3 className="font-medium text-gray-900">{group.label}</h3>
+              {group.description && <InfoTooltip tooltip={group.description} />}
+            </div>
             <ChevronRight
               className={`w-5 h-5 transition-transform duration-200 ${expandedGroups[group.id] ? 'transform rotate-90' : ''}`}
             />
@@ -134,10 +138,6 @@ export const PropertyRenderer = ({
           
           {expandedGroups[group.id] && (
             <div className="px-4 py-3 border-t border-gray-200">
-              {group.description && (
-                <p className="text-sm text-gray-500 mb-4">{group.description}</p>
-              )}
-              
               {renderProperties(groupProperties)}
             </div>
           )}
