@@ -198,7 +198,32 @@ export const PropertyRenderer = ({
     
     // Always call onChange to update pending changes
     onChange(propId, normalizedValue);
-  }, [onChange]);
+    
+    // Immediately run validation to update form validity state
+    setTimeout(() => {
+      const validationEngine = new ValidationEngine(registry);
+      const plugin = registry.getNodeType(node.type);
+      
+      if (plugin) {
+        // Create a temporary node with the updated value
+        const tempNode = {
+          ...node,
+          properties: {
+            ...(node.properties || {}),
+            [propId]: normalizedValue
+          }
+        };
+        
+        // Run validation on the temporary node
+        const validationResults = validateNodeFields();
+        
+        // Update overall form validity based on all validation results
+        if (onValidate) {
+          onValidate(Object.keys(validationResults).length === 0, {});
+        }
+      }
+    }, 0);
+  }, [onChange, node, registry, validateNodeFields, onValidate]);
   
   // Render property groups
   const renderGroups = () => {

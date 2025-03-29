@@ -60,11 +60,16 @@ const NodePropertiesPanel = React.memo(({
     setIsFormValid(isValid);
     setValidationErrors(errors || {});
     
+    // Enable dirty state if the form is valid (so Apply Changes button works)
+    if (isValid && Object.keys(pendingChanges).length > 0) {
+      setIsDirty(true);
+    }
+    
     // Only log validation in development and only when there are errors
     if (process.env.NODE_ENV === 'development' && !isValid) {
       console.log('Validation errors:', errors);
     }
-  }, []);
+  }, [pendingChanges]);
 
   // Handle save button click - apply all pending changes
   const handleSave = useCallback(() => {
