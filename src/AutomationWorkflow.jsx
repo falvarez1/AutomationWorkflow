@@ -8,6 +8,7 @@ import { commandManager } from './components/AutomationWorkflow/commands';
 import { BranchUtils } from './components/AutomationWorkflow/utils/BranchUtils';
 import { animationManager } from './components/AutomationWorkflow/utils/AnimationManager';
 import { generateUniqueId } from './components/AutomationWorkflow/utils/GeneralUtils';
+import { enhanceNodeWithLocalData } from './components/AutomationWorkflow/utils/workflowLoadHelpers';
 
 // Import the plugin registry and plugins
 import { pluginRegistry } from './components/AutomationWorkflow/plugins/registry';
@@ -98,6 +99,7 @@ import {
   executeWorkflow,
   getWorkflowInputSchema
 } from './components/AutomationWorkflow/services/workflowServiceIntegration';
+import { initNodeDataSyncService } from './components/AutomationWorkflow/services/nodeDataSyncService';
 
 // Import built-in controls
 import {
@@ -293,14 +295,15 @@ const AutomationWorkflow = ({
     );
   };
 
-  const handleUpdateNodePropertyEvent = (nodeId, propertyId, value) => {
+  const handleUpdateNodePropertyEvent = (nodeId, propertyId, value, isLocalUpdate = false) => {
     handleUpdateNodeProperty(
       nodeId,
       propertyId,
       value,
       workflowGraph,
       setWorkflowGraph,
-      commandManager
+      commandManager,
+      isLocalUpdate
     );
   };
 
@@ -506,14 +509,23 @@ const handleRedoEvent = () => {
     
     const cleanupFn = initBackendServices();
     
+    // Initialize node data sync service
+    const syncCleanup = initNodeDataSyncService(workflowGraph, setWorkflowGraph, commandManager);
+    
     return () => {
+      // Cleanup workflow service
       if (cleanupFn && typeof cleanupFn.then === 'function') {
         cleanupFn.then(cleanup => {
           if (cleanup) cleanup();
         });
       }
+      
+      // Cleanup sync service
+      if (syncCleanup) {
+        syncCleanup();
+      }
     };
-  }, [workflowId, onExecutionStatusChange, setWorkflowGraph]);
+  }, [workflowId, onExecutionStatusChange, setWorkflowGraph, workflowGraph, commandManager]);
 
   // Get workflow input schema
   const getWorkflowInputSchemaFn = () => {

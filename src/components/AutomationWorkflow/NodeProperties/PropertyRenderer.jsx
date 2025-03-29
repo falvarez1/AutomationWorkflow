@@ -161,7 +161,13 @@ export const PropertyRenderer = ({
       if (!control) return null;
       
       const ControlComponent = control.component;
-      const value = node[prop.id];
+      
+      // First check if the property is in the properties object
+      // If not, fall back to direct property on the node (for backward compatibility)
+      const value = node.properties && node.properties[prop.id] !== undefined
+        ? node.properties[prop.id]
+        : node[prop.id];
+        
       const error = errors[prop.id];
       
       // Render the control
@@ -184,7 +190,10 @@ export const PropertyRenderer = ({
     if (!prop.dependencies || prop.dependencies.length === 0) return true;
     
     return prop.dependencies.every(dep => {
-      const sourceValue = nodeData[dep.sourceId];
+      // Check in properties object first, then fallback to direct property
+      const sourceValue = nodeData.properties && nodeData.properties[dep.sourceId] !== undefined
+        ? nodeData.properties[dep.sourceId]
+        : nodeData[dep.sourceId];
       
       switch (dep.condition) {
         case 'equals':
@@ -206,7 +215,10 @@ export const PropertyRenderer = ({
     if (!group.conditions || group.conditions.length === 0) return true;
     
     return group.conditions.every(condition => {
-      const value = nodeData[condition.propertyId];
+      // Check in properties object first, then fallback to direct property
+      const value = nodeData.properties && nodeData.properties[condition.propertyId] !== undefined
+        ? nodeData.properties[condition.propertyId]
+        : nodeData[condition.propertyId];
       
       switch (condition.operator) {
         case 'equals':

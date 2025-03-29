@@ -449,23 +449,40 @@ class UpdateNodeCommand extends BaseGraphCommand {
     this.nodeId = nodeId;
     this.newProperties = { ...properties };
     this.oldProperties = {};
+    this.isPropertyUpdate = true; // Flag to identify this as a property update
   }
 
   execute() {
     const node = this.graph.getNode(this.nodeId);
-    if (!node) return false;
+    if (!node) {
+      console.error(`Node ${this.nodeId} not found in graph`);
+      return false;
+    }
     
     // Save old values for undo
     Object.keys(this.newProperties).forEach(key => {
       this.oldProperties[key] = node[key];
     });
     
+    console.log(`UpdateNodeCommand: Updating node ${this.nodeId} with properties:`, this.newProperties);
+    
     // Update the node
-    return this.graph.updateNode(this.nodeId, this.newProperties);
+    const result = this.graph.updateNode(this.nodeId, this.newProperties);
+    
+    // Verify the update worked
+    if (result) {
+      const updatedNode = this.graph.getNode(this.nodeId);
+      console.log(`Node ${this.nodeId} after update:`, updatedNode);
+    } else {
+      console.error(`Failed to update node ${this.nodeId}`);
+    }
+    
+    return result;
   }
 
   undo() {
     // Restore the previous values
+    console.log(`UpdateNodeCommand: Undoing node ${this.nodeId} update, restoring:`, this.oldProperties);
     return this.graph.updateNode(this.nodeId, this.oldProperties);
   }
 }

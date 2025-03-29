@@ -1,5 +1,6 @@
 import { workflowService } from '../../../services/workflowService';
 import { Graph } from '../graph/Graph';
+import { enhanceGraphWithLocalData } from '../utils/workflowLoadHelpers';
 
 /**
  * Initialize the workflow service and set up event listeners
@@ -138,7 +139,10 @@ export const loadWorkflowFromBackend = async (
     
     // Convert backend workflow to graph
     if (workflow.steps && workflow.steps.length > 0 && setWorkflowGraph) {
-      setWorkflowGraph(Graph.fromWorkflowSteps(workflow.steps));
+      const graph = Graph.fromWorkflowSteps(workflow.steps);
+      // Enhance with any locally stored node data
+      const enhancedGraph = enhanceGraphWithLocalData(graph);
+      setWorkflowGraph(enhancedGraph);
     }
     
     return workflow;

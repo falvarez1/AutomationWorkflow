@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Graph } from '../graph/Graph';
 import { commandManager } from '../commands';
+import { enhanceNodeWithLocalData } from '../utils/workflowLoadHelpers';
 
 /**
  * Hook for managing workflow state
@@ -34,9 +35,18 @@ export function useWorkflowState(initialWorkflowSteps) {
     return workflowGraph.getAllNodes();
   }, [workflowGraph]);
   
-  // Derived state - currently selected node
+  // Derived state - currently selected node enhanced with local storage data
   const selectedNode = useMemo(() => {
-    return selectedNodeId ? workflowGraph.getNode(selectedNodeId) : null;
+    if (!selectedNodeId) return null;
+    
+    // Get the node from the graph
+    const node = workflowGraph.getNode(selectedNodeId);
+    if (!node) return null;
+    
+    // Enhance it with any locally stored data
+    console.log('Enhancing selected node with local storage data:', node.id);
+    const enhancedNode = enhanceNodeWithLocalData(node);
+    return enhancedNode;
   }, [workflowGraph, selectedNodeId]);
   
   // Handler to close menus

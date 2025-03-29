@@ -1,5 +1,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { PropertyRenderer } from './PropertyRenderer';
+import { workflowService } from '../../../services/workflowService';
+import { saveNodeToLocalStorage } from '../utils/localStorageUtils';
 
 /**
  * Node Properties Panel
@@ -17,12 +19,24 @@ const NodePropertiesPanel = React.memo(({
   const [isFormValid, setIsFormValid] = useState(true);
   const [validationErrors, setValidationErrors] = useState({});
   const [isDirty, setIsDirty] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // 'local' or 'api' or null
   
   // Clear pending changes when node changes
   useEffect(() => {
     setPendingChanges({});
     setIsDirty(false);
+    setSaveStatus(null);
   }, [node?.id]);
+  
+  // Clear save status after timeout
+  useEffect(() => {
+    if (saveStatus) {
+      const timer = setTimeout(() => {
+        setSaveStatus(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [saveStatus]);
   
   // Collect changes instead of updating immediately
   const handlePropertyChange = useCallback((propertyId, value) => {
@@ -54,10 +68,61 @@ const NodePropertiesPanel = React.memo(({
   const handleSave = useCallback(() => {
     if (!node || !isFormValid) return;
     
-    // Apply all pending changes
-    Object.entries(pendingChanges).forEach(([propertyId, value]) => {
-      onUpdate(node.id, propertyId, value);
-    });
+    // For testing purposes, force local storage mode
+    const isApiConnected = false; // workflowService.isConnected();
+    
+    // Create a log of changes for debugging
+    console.log('Saving changes:', pendingChanges);
+    
+    if (isApiConnected) {
+      // Normal flow - API is connected
+      Object.entries(pendingChanges).forEach(([propertyId, value]) => {
+        // Pass false for isLocalUpdate since this is going to the API
+        onUpdate(node.id, propertyId, value, false);
+      });
+      setSaveStatus('api');
+    } else {
+      // Fallback to local storage
+      // First update the node in the UI for immediate feedback
+      Object.entries(pendingChanges).forEach(([propertyId, value]) => {
+        // Pass true for isLocalUpdate to indicate this is a local storage update
+        onUpdate(node.id, propertyId, value, true);
+      });
+      
+      // Then save the fully updated node to local storage
+      // This needs to happen after the updates, so we get the latest node state
+      
+      // Get current properties or initialize empty object
+      const currentProperties = node.properties || {};
+      
+      // Create updated properties by merging current with pending changes
+      const updatedProperties = {
+        ...currentProperties
+      };
+      
+      // Add each pending change to the properties
+      Object.entries(pendingChanges).forEach(([propId, value]) => {
+        updatedProperties[propId] = value;
+      });
+      
+      // Create a node object with proper structure for local storage
+      const nodeToSave = {
+        id: node.id,
+        type: node.type,
+        properties: updatedProperties
+      };
+      
+      // Save to local storage with enhanced debugging
+      console.log('Saving node to local storage:', nodeToSave);
+      const saved = saveNodeToLocalStorage(node.id, nodeToSave);
+      
+      if (saved) {
+        console.log('Node successfully saved to local storage');
+        setSaveStatus('local');
+      } else {
+        console.error('Failed to save node to local storage');
+      }
+    }
     
     // Clear pending changes
     setPendingChanges({});
@@ -117,21 +182,54 @@ const NodePropertiesPanel = React.memo(({
         </div>
         
         {/* Fixed footer with Apply Changes and Cancel buttons */}
-        <div className="sticky bottom-0 left-0 right-0 bg-white py-4 px-4 border-t border-gray-200 z-10 flex justify-end space-x-3">
-          <button
-            onClick={handleCancel}
-            className={`px-5 py-2 rounded-md border ${isDirty ? 'border-gray-300 text-gray-700 hover:bg-gray-50' : 'border-gray-200 text-gray-400 cursor-not-allowed'}`}
-            disabled={!isDirty}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className={`px-5 py-2 rounded-md ${isDirty && isFormValid ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-300 text-white cursor-not-allowed'}`}
-            disabled={!isDirty || !isFormValid}
-          >
-            Apply Changes
-          </button>
+        <div className="sticky bottom-0 left-0 right-0 bg-white py-4 px-4 border-t border-gray-200 z-10">
+          <div className="flex items-center justify-between">
+            {/* Status message */}
+            <div className="flex-1">
+              {saveStatus === 'local' && (
+                <div className="text-amber-600 text-sm flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Changes saved locally (API disconnected)
+                </div>
+              )}
+              {saveStatus === 'api' && (
+                <div className="text-green-600 text-sm flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Changes saved to API
+                </div>
+              )}
+              {!workflowService.isConnected() && !saveStatus && (
+                <div className="text-amber-600 text-sm flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  API disconnected - changes will be saved locally
+                </div>
+              )}
+            </div>
+            
+            {/* Buttons */}
+            <div className="flex space-x-3">
+              <button
+                onClick={handleCancel}
+                className={`px-5 py-2 rounded-md border ${isDirty ? 'border-gray-300 text-gray-700 hover:bg-gray-50' : 'border-gray-200 text-gray-400 cursor-not-allowed'}`}
+                disabled={!isDirty}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className={`px-5 py-2 rounded-md ${isDirty && isFormValid ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-300 text-white cursor-not-allowed'}`}
+                disabled={!isDirty || !isFormValid}
+              >
+                Apply Changes
+              </button>
+            </div>
+          </div>
         </div>
       </div>
   );

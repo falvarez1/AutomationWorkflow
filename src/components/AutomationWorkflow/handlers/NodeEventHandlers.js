@@ -304,35 +304,59 @@ export const handleNodeDragEnd = (id, dragStartPosition, workflowGraph, setWorkf
 
 /**
  * Handles node property updates
- * 
+ *
  * @param {string} nodeId - Node ID
  * @param {string} propertyId - Property name to update
  * @param {any} value - New property value
  * @param {Object} workflowGraph - Current graph state
  * @param {Function} setWorkflowGraph - State setter function
  * @param {Object} commandManager - Command manager instance
+ * @param {boolean} isLocalUpdate - Whether this update is from local storage
  */
-export const handleUpdateNodeProperty = (nodeId, propertyId, value, workflowGraph, setWorkflowGraph, commandManager) => {
+export const handleUpdateNodeProperty = (nodeId, propertyId, value, workflowGraph, setWorkflowGraph, commandManager, isLocalUpdate = false) => {
   if (!nodeId) return;
   
   // Get the current node
   const node = workflowGraph.getNode(nodeId);
   if (!node) return;
   
-  // Create a command to update the property
+  console.log(`Updating node ${nodeId} property ${propertyId} with value:`, value);
+  
+  // Get existing properties or create empty object
+  const currentProperties = node.properties || {};
+  
+  // Create a command to update the property within the properties object
   const updateCommand = new UpdateNodeCommand(
     workflowGraph,
     nodeId,
     {
       properties: {
-        ...node.properties,
+        ...currentProperties,
         [propertyId]: value
       }
     }
   );
   
   // Execute command with commandUtils
-  executeGraphCommand(updateCommand, commandManager, setWorkflowGraph);
+  const success = executeGraphCommand(updateCommand, commandManager, setWorkflowGraph);
+  
+  // Verify the update in the console
+  if (success) {
+    console.log(`Node property update successful for ${nodeId}.${propertyId}`);
+    
+    // We don't need to call getCurrentState() since executeGraphCommand already updates the graph
+    // This was causing the error: commandManager.getCurrentState is not a function
+    
+    // Directly get the updated node from the graph
+    const updatedGraph = workflowGraph;
+    const updatedNode = updatedGraph ? updatedGraph.getNode(nodeId) : null;
+    
+    if (updatedNode) {
+      console.log(`Updated property value:`, updatedNode?.properties?.[propertyId]);
+    }
+    
+    // No need to call setWorkflowGraph again as it's already called in executeGraphCommand
+  }
 };
 
 /**
