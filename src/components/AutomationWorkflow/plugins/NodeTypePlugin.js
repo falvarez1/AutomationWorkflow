@@ -56,10 +56,21 @@ export class NodeTypePlugin {
    * @param {Object} nodeProperties - Optional properties of the node to generate dynamic branches
    */
   getBranches(nodeProperties) {
+    // Make sure we have valid properties object
+    let propsToUse = nodeProperties;
+    
+    // Handle case where properties might be nested in a 'properties' field
+    // This helps compatibility between different ways nodes may be structured
+    if (nodeProperties && nodeProperties.properties && typeof nodeProperties.properties === 'object') {
+      console.info("Using nested properties field");
+      propsToUse = nodeProperties.properties;
+    }
+    
     // If we have a dynamic branch generator and node properties, use that
-    if (this.getBranchesFromProps && nodeProperties) {
+    if (this.getBranchesFromProps && propsToUse) {
       // Preprocess properties if needed
-      const processedProps = this.preprocessProperties(nodeProperties);
+      const processedProps = this.preprocessProperties(propsToUse);
+    //  console.log("After preprocessing:", processedProps);
       return this.getBranchesFromProps(processedProps);
     }
     

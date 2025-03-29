@@ -1,5 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import InfoTooltip from '../ui/InfoTooltip';
 
 /**
  * Base form control component that provides consistent structure for all form controls
@@ -12,28 +13,60 @@ const BaseFormControl = ({
   error,
   renderInput,
   className = '',
+  groupDescription,
   ...rest
 }) => {
   return (
-    <div className={`form-control mb-4 ${className}`}>
-      {label && (
-        <label 
-          htmlFor={id} 
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          {label}
-        </label>
+    <div className={`form-control mb-5 ${className}`}>
+      
+      {/* Group description with info icon if provided */}
+      {groupDescription && (
+        <div className="mb-2 flex items-center">
+          <span className="text-sm font-semibold text-gray-700 mr-1">Group Info:</span>
+          <InfoTooltip tooltip={groupDescription} />
+        </div>
       )}
       
-      {description && (
-        <p className="text-sm text-gray-500 mb-2">{description}</p>
-      )}
-      
-      {renderInput && renderInput(rest)}
-      
-      {error && (
-        <p className="mt-1 text-sm text-red-500">{error}</p>
-      )}
+      {/* Stack layout with labels above inputs */}
+      <div className="flex flex-col items-start">
+        {label && (
+          <>
+            {/* Label above input with info icon tooltip */}
+            <div className="w-full text-left mb-1 flex items-center">
+              <label
+                htmlFor={id}
+                className="text-sm font-medium text-gray-700"
+              >
+                {label}
+              </label>
+              {description && <InfoTooltip tooltip={description} />}
+            </div>
+            {/* Input container */}
+            <div className="w-full">
+              {renderInput && renderInput(rest)}
+
+              {/* Show errors in red */}
+              {error && (
+                <p className="mt-1 text-xs text-red-500">{error}</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {!label && renderInput && (
+          // Container for input when no label is present
+          <div className="w-full">
+            <div className="flex items-center">
+              {renderInput(rest)}
+              {description && <InfoTooltip tooltip={description} />}
+            </div>
+
+            {error && (
+              <p className="mt-1 text-xs text-red-500">{error}</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -44,7 +77,8 @@ BaseFormControl.propTypes = {
   description: PropTypes.string,
   error: PropTypes.string,
   renderInput: PropTypes.func.isRequired,
-  className: PropTypes.string
+  className: PropTypes.string,
+  groupDescription: PropTypes.string
 };
 
 export default BaseFormControl;

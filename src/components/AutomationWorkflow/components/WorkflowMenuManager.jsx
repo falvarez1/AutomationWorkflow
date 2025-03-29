@@ -17,6 +17,8 @@ const WorkflowMenuManager = ({
 }) => {
   // Calculate menu position based on menu state
   const calculateMenuPosition = useCallback(() => {
+
+    //console.log('Calculating menu position...');
     return getMenuPosition(
       menuState,
       workflowGraph,
@@ -32,7 +34,7 @@ const WorkflowMenuManager = ({
   // Determine which menu to show based on menu type
   const renderMenus = () => {
     if (!menuState.activeNodeId) return null;
-    
+    console.log('Menu state:', menuState);
     const position = calculateMenuPosition();
     
     // Standard node menu (non-branch)

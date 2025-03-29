@@ -4,29 +4,30 @@ import { NODE_TYPES, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../constant
 import NodeContextMenu from './NodeContextMenu';
 
 // Draggable Workflow Step Component
-const WorkflowStep = ({ 
-  id, 
-  type, 
-  title, 
-  subtitle, 
-  position, 
-  transform, 
-  onClick, 
-  onDragStart, 
-  onDrag, 
-  onDragEnd, 
-  onHeightChange, 
-  isNew, 
-  isAnimating, 
-  isSelected, 
-  contextMenuConfig: propContextMenuConfig 
+const WorkflowStep = ({
+  id,
+  type,
+  title,
+  subtitle,
+  position,
+  transform,
+  onClick,
+  onDragStart,
+  onDrag,
+  onDragEnd,
+  onHeightChange,
+  isNew,
+  isAnimating,
+  isSelected,
+  sourceNodeRefs = [],
+  contextMenuConfig: propContextMenuConfig
 }) => {
   const nodeRef = useRef(null);
   const headerHeightRef = useRef(null); // Ref to cache the calculated header height
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
-  const [, setNodeHeight] = useState(DEFAULT_NODE_HEIGHT); // Only the setter is used
+  const [nodeHeight, setNodeHeight] = useState(DEFAULT_NODE_HEIGHT); // Only the setter is used
   const [hasRendered, setHasRendered] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuConfig] = useState(propContextMenuConfig || {
@@ -153,6 +154,19 @@ const WorkflowStep = ({
   const handleMouseDown = (e) => {
     if (e.button !== 0) return; // Only handle left-click
 
+    // Check if this is a click on a button or context menu
+    const target = e.target;
+    const isMenuClick = target.closest('[data-context-menu="true"]') || 
+                      target.closest('button') ||
+                      target.tagName.toLowerCase() === 'button';
+                        
+    // Don't start drag operation if clicking on menu items
+    if (isMenuClick) {
+      // Just handle the normal click without drag
+      setWasJustClicked(true);
+      return;
+    }
+
     // Set the clicked flag to prevent deselection
     setWasJustClicked(true);
 
@@ -170,7 +184,7 @@ const WorkflowStep = ({
     // Get the current header height and apply proper scaling
     const scaledHeaderOffset = headerHeight / safeScale;
     const offsetY = (e.clientY - rect.top) / safeScale + scaledHeaderOffset;
-
+    
     setDragOffset({ x: offsetX, y: offsetY });
     setIsDragging(true);
 
@@ -224,18 +238,37 @@ const WorkflowStep = ({
     if (!nodeRef.current) return;
 
     const observer = new ResizeObserver(entries => {
-      const height = entries[0].contentRect.height;
-      setNodeHeight(height);
-
-      // Report height change to parent component
-      if (onHeightChange) {
-        onHeightChange(id, height);
-      }
+        // Add a small delay to ensure content is fully rendered
+        setTimeout(() => {
+            if (!nodeRef.current) return;
+            
+            // Use getBoundingClientRect instead of contentRect for more accurate measurement
+            const rect = nodeRef.current.getBoundingClientRect();
+            const newHeight = rect.height;
+            
+            // Convert from screen pixels to canvas coordinates (account for transform scale)
+            const canvasHeight = newHeight / transform.scale;
+            
+            // Apply node type-specific adjustments if needed
+            let adjustedHeight = canvasHeight;
+            if (type === NODE_TYPES.SPLITFLOW) {
+                // Add a small buffer for SPLITFLOW nodes if needed
+                adjustedHeight += 5;  
+            }
+            
+            if (adjustedHeight !== nodeHeight) {  // Only update when different
+                setNodeHeight(adjustedHeight);
+                
+                if (onHeightChange) {
+                    onHeightChange(id, adjustedHeight);
+                }
+            }
+        }, 50); // Small delay to ensure content is settled
     });
 
     observer.observe(nodeRef.current);
     return () => observer.disconnect();
-  }, [id, onHeightChange]);
+}, [id, onHeightChange, nodeHeight, transform.scale, type]);
 
   // Determine the appropriate styles based on state
   const style = {
@@ -269,6 +302,7 @@ const WorkflowStep = ({
       data-node-id={id}
       data-node-element="true"
       data-was-just-clicked={wasJustClicked ? "true" : "false"}
+      data-source-nodes={sourceNodeRefs.map(ref => `${ref.sourceId}:${ref.type}:${ref.label || 'null'}`).join(',')}
       className={`p-4 bg-white border border-l-4 ${isSelected ? config.selectedColor : config.borderColor} ${!isDragging && config.hoverColor} rounded-lg ${isDragging ? 'shadow-xl' : 'shadow-sm hover:shadow-md'} ${config.bgHover}`}
       onMouseDown={handleMouseDown}
       onMouseEnter={() => setIsHovering(true)}
@@ -304,6 +338,7 @@ const WorkflowStep = ({
         offsetX={contextMenuConfig.offsetX}
         offsetY={contextMenuConfig.offsetY}
         orientation={contextMenuConfig.orientation}
+        data-context-menu="true"
       />
 
       {isDragging && (
@@ -313,4 +348,33 @@ const WorkflowStep = ({
   );
 };
 
-export default WorkflowStep;
+// Optimize with custom comparison function
+export default React.memo(WorkflowStep, (prevProps, nextProps) => {
+  // First, check if sourceNodeRefs changed - this is critical for edge connections
+  if (prevProps.sourceNodeRefs?.length !== nextProps.sourceNodeRefs?.length) {
+    return false; // Different length means they're different, force update
+  }
+  
+  // Compare each sourceNodeRef individually
+  if (prevProps.sourceNodeRefs && nextProps.sourceNodeRefs) {
+    const prevSourceIds = prevProps.sourceNodeRefs.map(ref => ref.sourceId).sort().join(',');
+    const nextSourceIds = nextProps.sourceNodeRefs.map(ref => ref.sourceId).sort().join(',');
+    if (prevSourceIds !== nextSourceIds) {
+      return false; // Source IDs changed, force update
+    }
+  }
+  
+  // Only re-render on specific prop changes
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.subtitle === nextProps.subtitle &&
+    prevProps.position.x === nextProps.position.x &&
+    prevProps.position.y === nextProps.position.y &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isNew === nextProps.isNew &&
+    // Essential - Check if transform has changed
+    prevProps.transform.x === nextProps.transform.x &&
+    prevProps.transform.y === nextProps.transform.y &&
+    prevProps.transform.scale === nextProps.transform.scale
+  );
+});
