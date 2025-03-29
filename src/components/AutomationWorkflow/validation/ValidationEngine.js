@@ -132,7 +132,7 @@ export class ValidationEngine {
    * @param {Object} properties - The properties to validate
    * @returns {Object} - Object with validation errors by propertyId
    */
-  validateNodeProperties(nodeType, properties) {
+  validateNodeProperties(nodeType, node) {
     const plugin = this.registry?.getNodeType?.(nodeType);
     if (!plugin) return {};
     
@@ -142,12 +142,17 @@ export class ValidationEngine {
     
     schema.forEach(propSchema => {
       const propertyId = propSchema.id;
-      const value = properties[propertyId];
+      
+      // Get property value, checking in properties object first, then direct property
+      const value = node.properties && node.properties[propertyId] !== undefined
+        ? node.properties[propertyId]
+        : node[propertyId];
+        
       const rules = validationRules[propertyId];
       
       if (rules) {
         // Check if this property should be validated based on dependencies
-        const shouldValidate = this.shouldValidateProperty(propSchema, properties);
+        const shouldValidate = this.shouldValidateProperty(propSchema, node);
         
         if (shouldValidate) {
           const error = this.validateProperty(propertyId, value, rules, propSchema);
@@ -166,13 +171,17 @@ export class ValidationEngine {
    * @param {Object} properties - All properties of the node
    * @returns {boolean} - Whether the property should be validated
    */
-  shouldValidateProperty(propSchema, properties) {
+  shouldValidateProperty(propSchema, node) {
     if (!propSchema.dependencies || propSchema.dependencies.length === 0) {
       return true;
     }
     
     return propSchema.dependencies.every(dep => {
-      const sourceValue = properties[dep.sourceId];
+      // Check in properties object first, then fallback to direct property
+      const sourceValue = node.properties && node.properties[dep.sourceId] !== undefined
+        ? node.properties[dep.sourceId]
+        : node[dep.sourceId];
+        
       return this._evaluateCondition(sourceValue, dep.condition, dep.value);
     });
   }

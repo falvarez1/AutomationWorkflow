@@ -8,13 +8,14 @@ import InfoTooltip from '../ui/InfoTooltip';
  * 
  * Renders property groups and controls based on schema.
  */
-export const PropertyRenderer = ({ 
-  node, 
-  schema, 
-  groups, 
-  registry, 
+export const PropertyRenderer = ({
+  node,
+  schema,
+  groups,
+  registry,
   onChange,
-  onValidate
+  onValidate,
+  resetDirtyState
 }) => {
   const [errors, setErrors] = useState({});
   const [expandedGroups, setExpandedGroups] = useState({});
@@ -35,40 +36,102 @@ export const PropertyRenderer = ({
   const hasNodePropertiesChanged = useCallback((prevNode, currentNode) => {
     if (!prevNode || !currentNode) return true;
     
+    // Function to extract a property value accounting for both structures
+    const getPropertyValue = (node, propId) => {
+      // First check properties object, then direct property
+      return node.properties && node.properties[propId] !== undefined
+        ? node.properties[propId]
+        : node[propId];
+    };
+    
+    // Get all property IDs from schema
+    const propIds = schema.map(prop => prop.id);
+    
     // Check if any property values have changed
-    const prevProps = Object.entries(prevNode);
-    const currentProps = Object.entries(currentNode);
-    
-    // Quick check if property count changed
-    if (prevProps.length !== currentProps.length) return true;
-    
-    // Check for value changes in properties that matter for validation
-    for (const [key, value] of currentProps) {
-      // Skip internal/metadata properties
-      if (key === 'id' || key === 'type' || key === 'position' || key === 'height' ||
-          key === 'isNew' || key === 'isAnimating' || key === 'contextMenuConfig') {
-        continue;
-      }
+    for (const propId of propIds) {
+      const prevValue = getPropertyValue(prevNode, propId);
+      const currentValue = getPropertyValue(currentNode, propId);
       
-      // Check if property value changed
-      if (prevNode[key] !== value) {
+      // Deep comparison for objects and arrays, strict comparison for primitives
+      if (JSON.stringify(prevValue) !== JSON.stringify(currentValue)) {
         return true;
       }
     }
     
     return false;
-  }, []);
+  }, [schema]);
   
   // Debounced validation timer
   const validationTimerRef = useRef(null);
   
+  // Validation state tracking
+  const [isDirty, setIsDirty] = useState({});
+  
+  // Effect to reset dirty state when requested
+  useEffect(() => {
+    if (resetDirtyState) {
+      setIsDirty({});
+    }
+  }, [resetDirtyState]);
+  
+  // Mark fields as dirty when they change
+  useEffect(() => {
+    if (hasNodePropertiesChanged(prevNodeRef.current, node)) {
+      // Determine which fields have changed
+      schema.forEach(prop => {
+        const propId = prop.id;
+        const prevValue = prevNodeRef.current?.properties?.[propId] ?? prevNodeRef.current?.[propId];
+        const currentValue = node?.properties?.[propId] ?? node?.[propId];
+        
+        if (JSON.stringify(prevValue) !== JSON.stringify(currentValue)) {
+          setIsDirty(prev => ({...prev, [propId]: true}));
+        }
+      });
+      
+      // Update ref for next comparison
+      prevNodeRef.current = { ...node };
+    }
+  }, [node, schema, hasNodePropertiesChanged]);
+  
+  // Custom validation function to override engine behavior for required fields
+  const validateNodeFields = useCallback(() => {
+    const validationEngine = new ValidationEngine(registry);
+    const plugin = registry.getNodeType(node.type);
+    if (!plugin) return {};
+    
+    const validationRules = plugin.getValidationRules();
+    const results = {};
+    
+    // Check each field for validation issues
+    schema.forEach(propSchema => {
+      const propId = propSchema.id;
+      const rules = validationRules[propId];
+      
+      if (!rules) return; // No rules, no validation needed
+      
+      // Get value from properties or direct access
+      const value = node.properties && node.properties[propId] !== undefined
+        ? node.properties[propId]
+        : node[propId];
+      
+      // Skip validation if field has a value and "required" is the only rule
+      if (value !== undefined && value !== null && value !== '' &&
+          Object.keys(rules).length === 1 && rules.required) {
+        return; // Field has value, don't apply required validation
+      }
+      
+      // For other cases, use the validation engine
+      const error = validationEngine.validateProperty(propId, value, rules, propSchema);
+      if (error) {
+        results[propId] = error;
+      }
+    });
+    
+    return results;
+  }, [node, registry, schema]);
+  
   // Validate properties with optimization
   useEffect(() => {
-    // Only validate if properties actually changed
-    if (!hasNodePropertiesChanged(prevNodeRef.current, node)) {
-      return;
-    }
-    
     // Clear any pending validation
     if (validationTimerRef.current) {
       clearTimeout(validationTimerRef.current);
@@ -76,17 +139,27 @@ export const PropertyRenderer = ({
     
     // Debounce validation (wait 300ms between changes)
     validationTimerRef.current = setTimeout(() => {
-      const validationEngine = new ValidationEngine(registry);
-      const newErrors = validationEngine.validateNodeProperties(node.type, node);
-      if (JSON.stringify(errors) !== JSON.stringify(newErrors)) {
-        setErrors(newErrors);
+      // Get validation results with our custom logic
+      const validationResults = validateNodeFields();
+      
+      // Only show errors for fields that have been interacted with
+      const filteredErrors = {};
+      Object.entries(validationResults).forEach(([propId, error]) => {
+        // Always show errors for dirty fields
+        if (isDirty[propId]) {
+          filteredErrors[propId] = error;
+        }
+      });
+      
+      // Update errors if they've changed
+      if (JSON.stringify(errors) !== JSON.stringify(filteredErrors)) {
+        setErrors(filteredErrors);
         if (onValidate) {
-          onValidate(Object.keys(newErrors).length === 0, newErrors);
+          // Pass the full validation state for form validity
+          // but only show filtered errors in the UI
+          onValidate(Object.keys(validationResults).length === 0, filteredErrors);
         }
       }
-      
-      // Update ref for next comparison
-      prevNodeRef.current = { ...node };
     }, 300);
     
     return () => {
@@ -94,7 +167,7 @@ export const PropertyRenderer = ({
         clearTimeout(validationTimerRef.current);
       }
     };
-  }, [node, registry, onValidate, hasNodePropertiesChanged, errors]);
+  }, [node, registry, onValidate, isDirty, errors, schema, validateNodeFields]);
   
   const toggleGroup = (groupId) => {
     setExpandedGroups(prev => ({
@@ -104,8 +177,27 @@ export const PropertyRenderer = ({
   };
   
   const handlePropertyValueChange = useCallback((propId, newValue) => {
+    // Mark field as dirty when user changes value
+    setIsDirty(prev => ({...prev, [propId]: true}));
+    
+    // Normalize empty strings to null to avoid validation issues with required fields
+    // This helps when a field is considered "empty" but still has a value
+    const normalizedValue = newValue === '' ? null : newValue;
+    
+    // Immediately validate this field
+    if (validationTimerRef.current) {
+      clearTimeout(validationTimerRef.current);
+    }
+    
+    // Clear the error for this field temporarily to prevent flicker
+    setErrors(prev => {
+      const updated = {...prev};
+      delete updated[propId];
+      return updated;
+    });
+    
     // Always call onChange to update pending changes
-    onChange(propId, newValue);
+    onChange(propId, normalizedValue);
   }, [onChange]);
   
   // Render property groups
@@ -164,10 +256,17 @@ export const PropertyRenderer = ({
       
       // First check if the property is in the properties object
       // If not, fall back to direct property on the node (for backward compatibility)
-      const value = node.properties && node.properties[prop.id] !== undefined
+      let value = node.properties && node.properties[prop.id] !== undefined
         ? node.properties[prop.id]
         : node[prop.id];
-        
+      
+      // Handle null/undefined values consistently for display
+      // This prevents the "required" error when there's actually a value
+      if (value === null || value === undefined) {
+        // Use empty string for display but track as null internally
+        value = '';
+      }
+      
       const error = errors[prop.id];
       
       // Render the control

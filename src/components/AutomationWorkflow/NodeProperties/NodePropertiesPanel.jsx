@@ -20,12 +20,14 @@ const NodePropertiesPanel = React.memo(({
   const [validationErrors, setValidationErrors] = useState({});
   const [isDirty, setIsDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // 'local' or 'api' or null
+  const [resetFieldDirtyState, setResetFieldDirtyState] = useState(false);
   
   // Clear pending changes when node changes
   useEffect(() => {
     setPendingChanges({});
     setIsDirty(false);
     setSaveStatus(null);
+    setResetFieldDirtyState(prev => !prev); // Toggle to trigger reset
   }, [node?.id]);
   
   // Clear save status after timeout
@@ -127,12 +129,14 @@ const NodePropertiesPanel = React.memo(({
     // Clear pending changes
     setPendingChanges({});
     setIsDirty(false);
+    setResetFieldDirtyState(prev => !prev); // Toggle to trigger reset
   }, [node, pendingChanges, isFormValid, onUpdate]);
   
   // Handle cancel/reset
   const handleCancel = useCallback(() => {
     setPendingChanges({});
     setIsDirty(false);
+    setResetFieldDirtyState(prev => !prev); // Toggle to trigger reset
   }, []);
 
   if (!node) return null;
@@ -146,7 +150,10 @@ const NodePropertiesPanel = React.memo(({
   // Create a modified node with pending changes for preview
   const nodeWithPendingChanges = {
     ...node,
-    ...pendingChanges
+    properties: {
+      ...(node.properties || {}),
+      ...pendingChanges
+    }
   };
   
   return (
@@ -178,6 +185,7 @@ const NodePropertiesPanel = React.memo(({
             registry={registry}
             onChange={handlePropertyChange}
             onValidate={handleValidation}
+            resetDirtyState={resetFieldDirtyState}
           />
         </div>
         
